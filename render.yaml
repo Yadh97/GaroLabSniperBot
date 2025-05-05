@@ -1,27 +1,27 @@
 services:
   - type: worker
-    name: solana-sniper-bot
+    name: garolab-sniper-bot
     runtime: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"
     envVars:
       - key: TELEGRAM_BOT_TOKEN
-        fromSecret: TELEGRAM_BOT_TOKEN    # Telegram Bot API token (set in Render Secret)
+        fromSecret: TELEGRAM_BOT_TOKEN
       - key: TELEGRAM_CHAT_ID
-        fromSecret: TELEGRAM_CHAT_ID      # Telegram chat ID for alerts (set in Render Secret)
-      - key: MORALIS_API_KEY
-        fromSecret: MORALIS_API_KEY      # Moralis API key for Pump.fun (set in Secret)
-      - key: RPC_URL
-        fromSecret: RPC_URL              # Solana RPC endpoint URL (set in Secret)
+        fromSecret: TELEGRAM_CHAT_ID
       - key: PRIVATE_KEY
-        fromSecret: PRIVATE_KEY          # Wallet private key (set in Secret)
+        fromSecret: PRIVATE_KEY
+      - key: RPC_URL
+        fromSecret: RPC_URL
+      - key: MORALIS_API_KEY
+        fromSecret: MORALIS_API_KEY
       - key: AUTO_BUY
-        value: "1"                       # Enable auto-buy (0 or 1)
+        value: "1"
       - key: TRADE_SIZE_SOL
-        value: "1.0"                     # Trade size in SOL for auto-buy
+        value: "1"
       - key: SLIPPAGE_BPS
-        value: "50"                      # Slippage 0.5%
+        value: "50"
       - key: TAKE_PROFIT_MULTIPLE
-        value: "2.0"                     # Take-profit at 2x
+        value: "2.0"
       - key: POLL_INTERVAL
-        value: "5"                       # Poll interval in seconds
+        value: "5"
