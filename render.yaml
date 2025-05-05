@@ -1,12 +1,29 @@
 
 services:
-  - type: web
+  - type: worker
     name: garolab-sniperbot
     env: python
+    runtime: python3
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python main.py"
     envVars:
-      - key: BOT_TOKEN
+      - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: CHAT_ID
+      - key: TELEGRAM_CHAT_ID
         sync: false
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false
+      - key: MORALIS_API_KEY
+        sync: false
+      - key: AUTO_BUY
+        value: "False"
+      - key: TRADE_SIZE_SOL
+        value: "0.5"
+      - key: SLIPPAGE_BPS
+        value: "500"
+      - key: PROFIT_TARGET_MULTIPLIER
+        value: "2.0"
+      - key: TEST_MODE
+        value: "True"
