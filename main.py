@@ -4,6 +4,7 @@ import data_sources
 import filters
 import notifier
 import trader
+from alerting import notify_new_token
 
 def main():
     print(f"[INFO] Solana Sniper Bot started. Auto-buy is {'ON' if config.AUTO_BUY else 'OFF'}")
