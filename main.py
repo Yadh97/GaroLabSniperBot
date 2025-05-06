@@ -28,13 +28,13 @@ def main():
             if token.address in seen_tokens:
                 continue
             seen_tokens.add(token.address)
-
-            if not filters.basic_filter(token):
-                continue
-            if not filters.rugcheck_filter(token.address):
-                continue
-            if not filters.holders_distribution_filter(token.address):
-                continue
+        
+            # 👇 Bypass all filters just for testing alerts
+            print(f"[TEST MODE] Alerting on token: {token.symbol} ({token.address})")
+            notify_new_token(token)
+        
+            # 💬 Optional: Add `break` to alert just once per loop
+            break
 
             buy_txid = None
             if config.AUTO_BUY:
