@@ -20,7 +20,7 @@ class TokenInfo:
 def fetch_new_from_dexscreener() -> List[TokenInfo]:
     """Fetch new Solana tokens using DexScreener public API."""
     new_tokens: List[TokenInfo] = []
-    url = "https://api.dexscreener.com/latest/dex/pairs"
+    url = "https://api.dexscreener.com/latest/pairs"
 
     try:
         resp = requests.get(url, timeout=10)
