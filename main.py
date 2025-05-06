@@ -1,7 +1,4 @@
 import time
-import requests
-from solana.publickey import PublicKey
-
 import config
 import data_sources
 import filters
