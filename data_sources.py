@@ -2,12 +2,6 @@ from dataclasses import dataclass
 from typing import List
 import requests
 
-# If config.py is present in your project, uncomment this:
-# import config
-
-# You can hardcode constants here or move them to config.py later
-DEFAULT_SOURCE = "pumpfun"
-
 @dataclass
 class TokenInfo:
     address: str
@@ -21,16 +15,16 @@ class TokenInfo:
     decimals: int = None
     buzz_score: float = 0.0
 
-def fetch_new_from_pumpfun_hot() -> List[TokenInfo]:
+def fetch_new_from_pumpfun_api() -> List[TokenInfo]:
     tokens: List[TokenInfo] = []
-    url = "https://client-api.pump.fun/hot"
+    url = "https://pump.fun/api/tokens"
 
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
     except Exception as e:
-        print(f"[ERROR] Pump.fun hot endpoint failed: {e}")
+        print(f"[ERROR] Pump.fun API fetch failed: {e}")
         return []
 
     for entry in data:
@@ -54,7 +48,7 @@ def fetch_new_from_pumpfun_hot() -> List[TokenInfo]:
                 liquidity_usd=liquidity,
                 fdv=fdv,
                 pair_id="",
-                source=DEFAULT_SOURCE,
+                source="pumpfun",
                 decimals=decimals,
                 buzz_score=0.0
             ))
@@ -66,7 +60,7 @@ def fetch_new_from_pumpfun_hot() -> List[TokenInfo]:
 def get_new_tokens_combined() -> List[TokenInfo]:
     final_tokens = []
     try:
-        final_tokens.extend(fetch_new_from_pumpfun_hot())
+        final_tokens.extend(fetch_new_from_pumpfun_api())
     except Exception as e:
         print(f"[ERROR] Failed loading Pump.fun tokens: {e}")
     return final_tokens
