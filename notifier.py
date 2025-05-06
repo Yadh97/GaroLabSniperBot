@@ -25,8 +25,8 @@ def format_token_alert(token, auto_buy=False, buy_txid=None):
     def escape_md(text):
         return text.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("]", "\\]").replace("`", "\\`")
 
-    name = escape_md(token.name)
-    symbol = escape_md(token.symbol)
+    name = escape_md(token.name or "Unknown")
+    symbol = escape_md(token.symbol or "???")
     price = f"${token.price_usd:,.6f}"
     liquidity = f"${token.liquidity_usd:,.0f}"
     fdv = f"${token.fdv:,.0f}"
