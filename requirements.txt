@@ -1,6 +1,7 @@
-requests
-beautifulsoup4
+requests==2.32.3
+beautifulsoup4==4.12.3
+websockets==12.0
+python-dotenv==1.0.1
 solana==0.30.0
-solders==0.15.0
-base58
-python-dotenv
+solders==0.25.0
+base58==2.1.1
