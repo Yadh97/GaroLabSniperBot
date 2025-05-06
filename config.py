@@ -16,7 +16,7 @@ TOP_HOLDER_MAX_PERCENT = 5.0      # Top holder limit (%)
 RPC_URL = os.getenv("RPC_URL", "https://api.mainnet-beta.solana.com")
 RUGCHECK_BASE_URL = "https://api.rugcheck.xyz/v1/tokens"
 MORALIS_API_KEY = os.getenv("MORALIS_API_KEY", "")
-PUMPFUN_NEW_TOKENS_URL = "https://solana-gateway.moralis.io/token/mainnet/exchange/pumpfun/new"
+PUMPFUN_NEW_TOKENS_URL = "https://solana-gateway.moralis.io/token/mainnet/exchange/pumpfun/new?limit=50"
 DEXSCREENER_NEW_PAIRS_URL = "https://dexscreener.com/new-pairs"
 SOL_MINT_ADDRESS = "So11111111111111111111111111111111111111112"
 
