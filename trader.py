@@ -1,29 +1,25 @@
 import base58
 import base64
 import requests
+import json
 from solders.keypair import Keypair as SoldersKeypair
 from solders.transaction import VersionedTransaction
+from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 from solana.rpc.types import TxOpts
-from solana.publickey import PublicKey
 import config
 
-# Prepare Solana RPC client
 rpc_client = Client(config.RPC_URL)
-
 USER_KEYPAIR = None
 USER_PUBKEY_STR = None
 
 def load_private_key():
-    """Load wallet private key from config into solders.Keypair."""
     global USER_KEYPAIR, USER_PUBKEY_STR
     key_str = config.PRIVATE_KEY.strip()
     if not key_str:
         raise Exception("No private key provided.")
-
     try:
         if key_str.startswith('['):
-            import json
             nums = json.loads(key_str)
             secret_bytes = bytes(nums)
         else:
@@ -42,17 +38,12 @@ def load_private_key():
     print(f"[INFO] Trading wallet loaded: {USER_PUBKEY_STR}")
 
 def jupiter_swap(input_mint: str, output_mint: str, amount: int, slippage_bps: int) -> str:
-    """
-    Execute a swap on Jupiter Aggregator.
-    Returns transaction signature if successful.
-    """
     if USER_KEYPAIR is None:
         load_private_key()
 
     quote_url = "https://quote-api.jup.ag/v6/quote"
     swap_url = "https://quote-api.jup.ag/v6/swap"
 
-    # 1. Get quote
     quote_params = {
         "inputMint": input_mint,
         "outputMint": output_mint,
@@ -64,7 +55,6 @@ def jupiter_swap(input_mint: str, output_mint: str, amount: int, slippage_bps: i
     quote_resp.raise_for_status()
     quote_data = quote_resp.json()
 
-    # 2. Get swap transaction
     swap_params = {
         "userPublicKey": USER_PUBKEY_STR,
         "wrapUnwrapSOL": True,
@@ -79,7 +69,6 @@ def jupiter_swap(input_mint: str, output_mint: str, amount: int, slippage_bps: i
     if not tx_base64:
         raise Exception("Swap transaction data not found.")
 
-    # 3. Decode, sign, and send
     tx_bytes = base64.b64decode(tx_base64)
     tx = VersionedTransaction.deserialize(tx_bytes)
     tx.sign([USER_KEYPAIR])
