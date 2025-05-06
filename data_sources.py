@@ -18,96 +18,44 @@ class TokenInfo:
     buzz_score: float = 0.0
 
 def fetch_new_from_dexscreener() -> List[TokenInfo]:
+    """Fetch new tokens from DexScreener Solana API."""
     new_tokens: List[TokenInfo] = []
+    url = "https://api.dexscreener.com/latest/dex/pairs/solana"
     try:
-        resp = requests.get(config.DEXSCREENER_NEW_PAIRS_URL, timeout=10)
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-    except requests.RequestException as e:
-        print(f"[ERROR] Failed to fetch DexScreener new pairs: {e}")
-        return new_tokens
-    soup = BeautifulSoup(resp.text, "html.parser")
-    anchors = soup.find_all('a')
-    for a in anchors:
-        href = a.get('href', '')
-        text = a.get_text(separator=" ").strip()
-        if href.startswith("/solana/") and " / SOL " in text:
-            parts = text.split(" $ ")
-            if len(parts) < 4:
-                continue
-            name_symbol_part = parts[0]
-            liquidity_part = parts[-2]
-            mcap_part = parts[-1]
-            price_part = parts[1]
-            if name_symbol_part.startswith("#"):
-                try:
-                    first_space = name_symbol_part.index(" ")
-                    name_symbol_part = name_symbol_part[first_space+1:].strip()
-                except ValueError:
-                    name_symbol_part = name_symbol_part.lstrip("#").strip()
-            if " / SOL " in name_symbol_part:
-                symbol = name_symbol_part.split(" / SOL ")[0].strip()
-                name = name_symbol_part.split(" / SOL ")[1].strip()
-            else:
-                continue
+        data = resp.json()
+        pairs = data.get("pairs", [])
+        for pair in pairs:
             try:
-                price_usd = float(price_part.strip().split()[0])
-            except ValueError:
-                continue
-            def parse_dollar_value(val_str: str) -> float:
-                val_str = val_str.strip().replace("$", "")
-                multiplier = 1.0
-                if val_str.endswith("K"):
-                    multiplier = 1000.0
-                    val_str = val_str[:-1]
-                elif val_str.endswith("M"):
-                    multiplier = 1000000.0
-                    val_str = val_str[:-1]
-                try:
-                    return float(val_str) * multiplier
-                except ValueError:
-                    return 0.0
-            liquidity_usd = parse_dollar_value(liquidity_part)
-            fdv = parse_dollar_value(mcap_part)
-            pair_id = href.split("/")[2] if len(href.split("/")) >= 3 else ""
-            token_addr = ""
-            if pair_id:
-                try:
-                    api_url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{pair_id}"
-                    pair_data = requests.get(api_url, timeout=5).json()
-                    if "pairs" in pair_data and pair_data["pairs"]:
-                        pair_info = pair_data["pairs"][0]
-                        base = pair_info.get("baseToken", {})
-                        quote = pair_info.get("quoteToken", {})
-                        base_addr = base.get("address", "")
-                        quote_addr = quote.get("address", "")
-                        base_symbol = base.get("symbol", "").upper()
-                        quote_symbol = quote.get("symbol", "").upper()
-                        if base_addr and (base_symbol == "SOL" or base_addr == config.SOL_MINT_ADDRESS):
-                            token_addr = quote_addr
-                        elif quote_addr and (quote_symbol == "SOL" or quote_addr == config.SOL_MINT_ADDRESS):
-                            token_addr = base_addr
-                        else:
-                            continue
-                    else:
-                        continue
-                except Exception as e:
-                    print(f"[WARN] Could not fetch pair details for {symbol}: {e}")
+                base_token = pair.get("baseToken", {})
+                quote_token = pair.get("quoteToken", {})
+                price_usd = float(pair.get("priceUsd", "0") or 0)
+                liquidity = float(pair.get("liquidity", "0") or 0)
+                fdv = float(pair.get("fdv", "0") or 0)
+                pair_id = pair.get("pairAddress", "")
+                token_addr = base_token.get("address", "")
+                symbol = base_token.get("symbol", "")
+                name = base_token.get("name", "")
+                if not token_addr or not symbol or not name:
                     continue
-            if not token_addr:
+                token = TokenInfo(
+                    address=token_addr,
+                    name=name,
+                    symbol=symbol,
+                    price_usd=price_usd,
+                    liquidity_usd=liquidity,
+                    fdv=fdv,
+                    pair_id=pair_id,
+                    source="dexscreener"
+                )
+                new_tokens.append(token)
+            except Exception:
                 continue
-            token = TokenInfo(
-                address=token_addr,
-                name=name,
-                symbol=symbol,
-                price_usd=price_usd,
-                liquidity_usd=liquidity_usd,
-                fdv=fdv,
-                pair_id=pair_id,
-                source="dexscreener"
-            )
-            token.buzz_score = 0.0
-            new_tokens.append(token)
+    except Exception as e:
+        print(f"[ERROR] DexScreener API failed: {e}")
     return new_tokens
+
 
 def fetch_new_from_pumpfun() -> List[TokenInfo]:
     new_tokens: List[TokenInfo] = []
