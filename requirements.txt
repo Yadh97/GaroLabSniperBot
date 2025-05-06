@@ -1,6 +1,6 @@
 requests
 beautifulsoup4
 solana==0.30.0
-solders>=0.26.0
+solders==0.15.0
 base58
 python-dotenv
