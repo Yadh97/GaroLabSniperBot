@@ -1,66 +1,94 @@
+# Filename: main.py
+
 import asyncio
-from websocket_listener import listen_new_tokens
+import json
+import websockets
+import time
 from filters import basic_filter, rugcheck_filter, holders_distribution_filter
-from notifier import notify_new_token
-from trader import jupiter_swap, load_private_key
+from trader import attempt_buy_token
+from telegram_alert import send_token_alert
+from token_cache import TokenCache
+from models import TokenInfo
 import config
 
-seen_tokens = set()
+# Initialize token memory cache
+cache = TokenCache()
 
-async def handle_token(token_msg):
-    mint = token_msg.get("mint")
-    if not mint or mint in seen_tokens:
-        return
+async def process_new_token_event(event_data):
+    token_address = event_data.get("tokenAddress")
+    symbol = event_data.get("symbol", "UNKNOWN")
+    print(f"[WS] New token detected: {symbol} ({token_address})")
+    cache.add_token(token_address)
 
-    # Construct pseudo-token object for filters
-    class Token:
-        def __init__(self):
-            self.address = mint
-            self.name = token_msg.get("name", "Unknown")
-            self.symbol = token_msg.get("symbol", "???")
-            self.price_usd = 0.0  # real price not available from WS
-            self.liquidity_usd = token_msg.get("solAmount", 0) * 100  # rough est. 1 SOL = $100
-            self.fdv = token_msg.get("marketCapSol", 0) * 100
-            self.pair_id = ""
-            self.source = "pumpfun"
-            self.decimals = None
-            self.buzz_score = 0.0
+async def recheck_tokens_loop():
+    # Periodically re-check tracked tokens for filter conditions or purge criteria.
+    while True:
+        due_tokens = cache.get_due_for_check(interval=300)  # Every 5 minutes
+        print(f"[RECHECK] {len(due_tokens)} tokens due for recheck.")
+        for token_state in due_tokens:
+            token_addr = token_state.address
 
-    token = Token()
+            # Simulate fetching updated token info (e.g. via Moralis or Jupiter or Dex APIs)
+            token_info = fetch_token_info_simulated(token_addr)
+            if not token_info:
+                continue
 
-    if not basic_filter(token):
-        return
-    if not rugcheck_filter(token.address):
-        return
-    if not holders_distribution_filter(token.address):
-        return
+            # Evaluate filters again
+            if all([
+                basic_filter(token_info),
+                rugcheck_filter(token_info.address),
+                holders_distribution_filter(token_info.address)
+            ]):
+                print(f"[RECHECK ✅] Token {token_info.symbol} now qualifies!")
+                send_token_alert(token_info)
+                if config.AUTO_BUY_ENABLED:
+                    attempt_buy_token(token_info)
+            cache.update_check(token_addr, signal_strength=1)
+        # Purge old inactive tokens
+        to_remove = cache.get_ready_for_purge()
+        for dead in to_remove:
+            print(f"[PURGE] Removing inactive token: {dead}")
+            cache.remove_token(dead)
+        await asyncio.sleep(300)  # Every 5 min
 
-    seen_tokens.add(mint)
-    buy_txid = None
+def fetch_token_info_simulated(token_addr):
+    # Simulated placeholder for fetching updated info about a token.
+    return TokenInfo(
+        address=token_addr,
+        name="TestToken",
+        symbol="TEST",
+        price_usd=0.001,
+        liquidity_usd=21000,
+        fdv=100000,
+        pair_id="simulated123",
+        source="pumpfun"
+    )
 
-    if config.AUTO_BUY:
+async def websocket_listener():
+    uri = "wss://pumpportal.fun/api/data"
+    while True:
         try:
-            amount = int(config.TRADE_SIZE_SOL * 1e9)  # lamports
-            buy_txid = jupiter_swap(
-                config.SOL_MINT_ADDRESS,
-                token.address,
-                amount,
-                config.SLIPPAGE_BPS
-            )
-            print(f"[BUY] Swap executed. TXID: {buy_txid}")
+            async with websockets.connect(uri) as ws:
+                await ws.send(json.dumps({"method": "subscribeNewToken"}))
+                print("[WS] Listening for new tokens...")
+                async for message in ws:
+                    try:
+                        event = json.loads(message)
+                        await process_new_token_event(event)
+                    except Exception as e:
+                        print(f"[ERROR] Failed to handle websocket message: {e}")
         except Exception as e:
-            print(f"[ERROR] Buy failed: {e}")
+            print(f"[ERROR] WebSocket connection failed: {e}")
+            await asyncio.sleep(10)
 
-    notify_new_token(token, auto_buy=config.AUTO_BUY, buy_txid=buy_txid)
-
-async def main():
-    print("[INFO] Solana Sniper Bot started. WebSocket mode. Auto-buy is ON" if config.AUTO_BUY else "Auto-buy is OFF")
-    load_private_key()
-
-    async for token_msg in listen_new_tokens():
-        if token_msg is None:
-            continue
-        await handle_token(token_msg)
+def main():
+    print("[INFO] Solana Sniper Bot started. Auto-buy is ON" if config.AUTO_BUY_ENABLED else "Auto-buy is OFF")
+    loop = asyncio.get_event_loop()
+    tasks = [
+        loop.create_task(websocket_listener()),
+        loop.create_task(recheck_tokens_loop())
+    ]
+    loop.run_until_complete(asyncio.wait(tasks))
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
