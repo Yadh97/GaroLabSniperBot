@@ -1,6 +1,8 @@
+
 import time
 import json
 import threading
+import os  # ✅ required for file existence and path handling
 from typing import Dict
 
 CACHE_FILE = "tracked_tokens.json"
@@ -105,7 +107,7 @@ class TokenCache:
                 self.save_cache()
 
 
-# Example usage:
+# Example usage (for local testing only):
 if __name__ == "__main__":
     cache = TokenCache()
     cache.add_token("abcd1234")
