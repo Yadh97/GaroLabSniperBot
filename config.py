@@ -4,6 +4,9 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+# config.py (only show what's needed for this task)
+
+CACHE_CLEANUP_INTERVAL_SECONDS = 300  # how often to cleanup expired tokens
 
 # === TELEGRAM ALERTING ===
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
