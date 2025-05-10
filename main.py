@@ -1,26 +1,61 @@
 # main.py
 
 import asyncio
+import time
 from websocket_listener import listen_new_tokens
-from token_cache import add_token_if_new, cleanup_expired_tokens
+from token_cache import add_token_if_new, cleanup_expired_tokens, token_cache
 import config
+
+stats = {
+    "start_time": time.time(),
+    "token_count": 0,
+    "last_token": None,
+    "last_cleanup": None,
+}
 
 async def consume_tokens():
     async for token in listen_new_tokens():
         if token:
             print(f"[WS] New token from Pump.fun: {token['symbol']} ({token['mint']})")
             add_token_if_new(token['mint'], token)
+            stats["token_count"] += 1
+            stats["last_token"] = {
+                "symbol": token['symbol'],
+                "mint": token['mint'],
+                "timestamp": time.strftime("%H:%M:%S")
+            }
 
 async def cleanup_loop():
     while True:
         cleanup_expired_tokens()
+        stats["last_cleanup"] = time.strftime("%H:%M:%S")
         await asyncio.sleep(config.CACHE_CLEANUP_INTERVAL_SECONDS)
+
+async def log_stats_loop():
+    while True:
+        uptime = int(time.time() - stats["start_time"])
+        hours, rem = divmod(uptime, 3600)
+        minutes, seconds = divmod(rem, 60)
+        uptime_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+        print("\n==============================")
+        print(f"🧠 BOT STATUS REPORT")
+        print(f"⏱️ Uptime: {uptime_str}")
+        print(f"📦 Tokens Seen: {stats['token_count']}")
+        print(f"🧠 Current Cache Size: {len(token_cache)}")
+        if stats['last_token']:
+            print(f"🆕 Last Token: {stats['last_token']['symbol']} at {stats['last_token']['timestamp']}")
+        if stats['last_cleanup']:
+            print(f"🧹 Last Cleanup: {stats['last_cleanup']}")
+        print("==============================\n")
+        await asyncio.sleep(60)
 
 async def main():
     print("[INFO] Solana Sniper Bot started.")
     await asyncio.gather(
         consume_tokens(),
-        cleanup_loop()
+        cleanup_loop(),
+        log_stats_loop()
     )
 
 if __name__ == "__main__":
