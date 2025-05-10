@@ -1,11 +1,11 @@
 # filters.py
 
 import requests
-from solana.publickey import PublicKey
+from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
 
-# Initialize a Solana RPC client
+# Initialize Solana RPC client
 rpc_client = Client(config.RPC_URL)
 
 def basic_filter(token) -> bool:
@@ -48,23 +48,26 @@ def rugcheck_filter(token_address: str) -> bool:
         return False
     if data.get("knownAccounts"):
         return False
-
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
     """
     Check top holders distribution:
-    Ensures top 10 holders each hold less than 5% of total supply.
+    Ensures top 10 holders each hold less than X% of total supply.
     """
     try:
-        # ✅ Updated to handle solana-py object response
-        supply_resp = rpc_client.get_token_supply(PublicKey(token_address))
+        # ✅ Use correct Pubkey.from_string format
+        pubkey = Pubkey.from_string(token_address)
+
+        # Token supply
+        supply_resp = rpc_client.get_token_supply(pubkey)
         supply_value = supply_resp.value
         total_amount = int(supply_value.amount)
         if total_amount == 0:
             return False
 
-        holders_resp = rpc_client.get_token_largest_accounts(PublicKey(token_address))
+        # Top holders
+        holders_resp = rpc_client.get_token_largest_accounts(pubkey)
         holders_info = holders_resp.value
 
         for idx, holder in enumerate(holders_info):
