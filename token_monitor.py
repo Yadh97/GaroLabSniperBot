@@ -5,7 +5,10 @@ from filters import basic_filter, rugcheck_filter, holders_distribution_filter
 from telegram_alert import send_token_alert
 from trader import attempt_buy_token
 from models import TokenInfo
-from token_cache import token_cache, update_check, get_due_for_check, remove_token, get_ready_for_purge
+from token_cache import (
+    token_cache, add_token_if_new, update_check,
+    get_due_for_check, get_ready_for_purge, remove_token
+)
 import config
 import time
 
