@@ -5,6 +5,7 @@ import time
 from websocket_listener import listen_new_tokens
 from token_cache import add_token_if_new, cleanup_expired_tokens, token_cache
 import config
+from token_monitor import recheck_tokens_loop
 
 stats = {
     "start_time": time.time(),
@@ -12,6 +13,14 @@ stats = {
     "last_token": None,
     "last_cleanup": None,
 }
+
+# Inside main():
+await asyncio.gather(
+    consume_tokens(),
+    cleanup_loop(),
+    log_stats_loop(),
+    recheck_tokens_loop()  # ✅ Add this line
+)
 
 async def consume_tokens():
     async for token in listen_new_tokens():
