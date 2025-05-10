@@ -30,10 +30,14 @@ def rugcheck_filter(token_address: str) -> bool:
     url = f"{config.RUGCHECK_BASE_URL}/{token_address}/report"
     try:
         resp = requests.get(url, timeout=10)
+        if resp.status_code == 404:
+            print(f"[INFO] RugCheck: Token not found: {token_address}")
+            return False  # Treat unknown as risky
         resp.raise_for_status()
     except requests.RequestException as e:
         print(f"[ERROR] RugCheck fetch failed: {e}")
         return False
+
 
     data = resp.json()
 
