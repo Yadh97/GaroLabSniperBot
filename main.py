@@ -14,14 +14,6 @@ stats = {
     "last_cleanup": None,
 }
 
-# Inside main():
-await asyncio.gather(
-    consume_tokens(),
-    cleanup_loop(),
-    log_stats_loop(),
-    recheck_tokens_loop()  # ✅ Add this line
-)
-
 async def consume_tokens():
     async for token in listen_new_tokens():
         if token:
@@ -64,7 +56,9 @@ async def main():
     await asyncio.gather(
         consume_tokens(),
         cleanup_loop(),
-        log_stats_loop()
+        log_stats_loop(),
+        recheck_tokens_loop()
+
     )
 
 if __name__ == "__main__":
