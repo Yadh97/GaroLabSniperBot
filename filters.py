@@ -4,6 +4,7 @@
 from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
+import requests
 
 rpc_client = Client(config.RPC_URL)
 
