@@ -5,6 +5,7 @@ from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
 import requests
+import traceback
 
 rpc_client = Client(config.RPC_URL)
 
@@ -87,6 +88,7 @@ def holders_distribution_filter(token_address: str) -> bool:
 
     except Exception as e:
         print(f"[ERROR] Holder check failed for {token_address}: {e}")
+        traceback.print_exc()
         return False
 
     return True
