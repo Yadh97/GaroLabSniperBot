@@ -1,90 +1,96 @@
-# token_cache.py
+# Filename: filters.py
 
-import json
-import os
-import time
-from typing import Dict, List
+import requests
+from solders.pubkey import Pubkey
+from solana.rpc.api import Client
+import config
 
-CACHE_FILE = "token_cache.json"
-MAX_LIFETIME_SECONDS = 3 * 3600  # 3 hours
-CHECK_INTERVAL_SECONDS = 300     # 5 minutes
-token_cache: Dict[str, dict] = {}
+# Setup RPC connection
+rpc_client = Client(config.RPC_URL)
 
-def load_cache():
-    global token_cache
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, 'r') as f:
-                token_cache = json.load(f)
-        except Exception as e:
-            print(f"[ERROR] Failed to load token cache: {e}")
-            token_cache = {}
-    else:
-        token_cache = {}
+def basic_filter(token) -> bool:
+    """
+    Liquidity and FDV screening.
+    ✅ Passes only if:
+    - Liquidity > threshold
+    - Market Cap (FDV) within safe bounds
+    """
+    if token.liquidity_usd < config.MIN_LIQUIDITY_USD:
+        print(f"[FILTER ❌] {token.symbol}: Liquidity too low (${token.liquidity_usd})")
+        return False
+    if token.fdv <= 0 or token.fdv > config.MAX_FDV_USD:
+        print(f"[FILTER ❌] {token.symbol}: Market Cap too high (${token.fdv})")
+        return False
+    return True
 
-def save_cache():
+def rugcheck_filter(token_address: str) -> bool:
+    """
+    ✅ Token must:
+    - Not be labeled dangerous/rugged
+    - Have no active mint/freeze authorities
+    - Not involve known malicious accounts
+    """
+    url = f"{config.RUGCHECK_BASE_URL}/{token_address}/report"
     try:
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(token_cache, f)
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 404:
+            print(f"[INFO] RugCheck: Token not found: {token_address}")
+            return False
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        print(f"[ERROR] RugCheck fetch failed: {e}")
+        return False
+
+    data = resp.json()
+
+    if data.get("rugged") is True:
+        print(f"[RUG ❌] Token {token_address} is flagged as rugged.")
+        return False
+    if str(data.get("result", "")).lower() in ("danger", "blacklisted"):
+        print(f"[RUG ❌] Token {token_address} flagged as {data.get('result')}.")
+        return False
+    if data.get("mintAuthority") not in (None, "", "null"):
+        print(f"[RUG ❌] Token {token_address} has active mint authority.")
+        return False
+    if data.get("freezeAuthority") not in (None, "", "null"):
+        print(f"[RUG ❌] Token {token_address} has active freeze authority.")
+        return False
+    if data.get("knownAccounts"):
+        print(f"[RUG ❌] Token {token_address} involves known malicious accounts.")
+        return False
+
+    return True
+
+def holders_distribution_filter(token_address: str) -> bool:
+    """
+    ✅ Ensures none of the top 10 holders hold > X% of supply.
+    """
+    try:
+        pubkey = Pubkey.from_string(token_address)
+
+        # 1. Total supply
+        supply_resp = rpc_client.get_token_supply(pubkey)
+        supply_value = supply_resp.get("result", {}).get("value", {})
+        total_amount_str = supply_value.get("amount")
+        if total_amount_str is None:
+            print(f"[HOLDERS ❌] Could not fetch supply for {token_address}")
+            return False
+        total_amount = int(total_amount_str)
+        if total_amount == 0:
+            print(f"[HOLDERS ❌] Token {token_address} has 0 supply.")
+            return False
+
+        # 2. Largest holders
+        holders_resp = rpc_client.get_token_largest_accounts(pubkey)
+        holders_info = holders_resp.get("result", {}).get("value", [])
+        for idx, holder in enumerate(holders_info[:10]):
+            holder_amount = int(holder.get("amount", 0))
+            if holder_amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
+                print(f"[HOLDERS ❌] Top holder #{idx+1} owns >= {config.TOP_HOLDER_MAX_PERCENT}% of supply.")
+                return False
+
     except Exception as e:
-        print(f"[ERROR] Failed to save token cache: {e}")
+        print(f"[ERROR] Holder check failed for {token_address}: {e}")
+        return False
 
-def add_token_if_new(mint: str, token_data: dict):
-    now = int(time.time())
-    if mint not in token_cache:
-        print(f"[CACHE] Adding new token {mint} to cache.")
-        token_cache[mint] = {
-            "data": token_data,
-            "created": now,
-            "last_seen": now,
-            "last_checked": 0,
-            "expires_at": now + MAX_LIFETIME_SECONDS
-        }
-        save_cache()
-    else:
-        token_cache[mint]["last_seen"] = now
-        save_cache()
-
-def update_check(mint: str, signal_strength: int = 0):
-    """Mark a token as rechecked and optionally extend its tracking time."""
-    if mint not in token_cache:
-        return
-    token_cache[mint]["last_checked"] = int(time.time())
-    if signal_strength > 0:
-        token_cache[mint]["expires_at"] = int(time.time()) + 3600  # extend 1 hour
-        print(f"[CACHE] Token {mint} extended due to positive signal.")
-    save_cache()
-
-def get_due_for_check(interval: int = CHECK_INTERVAL_SECONDS) -> List[dict]:
-    """Returns tokens that haven't been checked recently."""
-    now = int(time.time())
-    return [
-        entry for entry in token_cache.values()
-        if now - entry.get("last_checked", 0) >= interval
-    ]
-
-def get_ready_for_purge() -> List[str]:
-    """Returns list of tokens that have expired (no activity, no signals)."""
-    now = int(time.time())
-    to_remove = []
-    for mint, entry in token_cache.items():
-        if now > entry.get("expires_at", 0):
-            to_remove.append(mint)
-    return to_remove
-
-def remove_token(mint: str):
-    if mint in token_cache:
-        print(f"[CACHE] Manually removing token {mint}")
-        del token_cache[mint]
-        save_cache()
-
-def cleanup_expired_tokens():
-    now = int(time.time())
-    expired = [mint for mint, entry in token_cache.items() if now - entry["last_seen"] > MAX_LIFETIME_SECONDS]
-    for mint in expired:
-        print(f"[CACHE] Removing expired token {mint}")
-        del token_cache[mint]
-    if expired:
-        save_cache()
-
-load_cache()
+    return True
