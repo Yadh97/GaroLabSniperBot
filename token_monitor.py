@@ -1,65 +1,61 @@
-# token_monitor.py
+
+# Filename: token_monitor.py
 
 import asyncio
+import time
 from filters import basic_filter, rugcheck_filter, holders_distribution_filter
 from telegram_alert import send_token_alert
 from trader import attempt_buy_token
-from models import TokenInfo
 from token_cache import (
-    token_cache, add_token_if_new, update_check,
-    get_due_for_check, get_ready_for_purge, remove_token
+    token_cache,
+    get_due_for_check,
+    update_check,
+    get_ready_for_purge,
+    remove_token
 )
+from models import TokenInfo
 import config
-import time
-
-def fetch_token_info_simulated(address: str) -> TokenInfo:
-    # Simulate updated token info (replace with real data fetching if available)
-    return TokenInfo(
-        address=address,
-        name="SimulatedToken",
-        symbol="SIM",
-        price_usd=0.001,
-        liquidity_usd=25000,
-        fdv=450000,
-        pair_id="simulated123",
-        source="pumpfun"
-    )
 
 async def recheck_tokens_loop():
     while True:
-        due_tokens = get_due_for_check(interval=300)
-        print(f"[RECHECK] {len(due_tokens)} tokens due for check.")
-        for token_state in due_tokens:
-            token_addr = token_state['data']['mint']
-            token_info = fetch_token_info_simulated(token_addr)
+        due = get_due_for_check(interval=300)
+        print(f"[RECHECK] {len(due)} tokens due for check.")
+        for entry in due:
+            addr = entry["address"]
+            data = entry["data"]
+            try:
+                token_info = TokenInfo(
+                    address=addr,
+                    name=data.get("name", "Unknown"),
+                    symbol=data.get("symbol", "?"),
+                    price_usd=float(data.get("priceUsd", 0)),
+                    liquidity_usd=float(data.get("solAmount", 0)) * config.SOL_PRICE_USD,
+                    fdv=float(data.get("marketCapSol", 0)) * config.SOL_PRICE_USD,
+                    pair_id=data.get("mint", ""),
+                    source="pumpfun"
+                )
 
-            token = TokenInfo(
-                address=token_info.address,
-                name=token_info.name,
-                symbol=token_info.symbol,
-                price_usd=token_info.price_usd,
-                liquidity_usd=token_info.liquidity_usd,
-                fdv=token_info.fdv,
-                pair_id=token_info.pair_id,
-                source=token_info.source
-            )
+                if all([
+                    basic_filter(token_info),
+                    rugcheck_filter(token_info.address),
+                    holders_distribution_filter(token_info.address)
+                ]):
+                    print(f"[✅] {token_info.symbol} passed all filters.")
+                    send_token_alert(token_info)
+                    if config.AUTO_BUY_ENABLED:
+                        attempt_buy_token(token_info)
+                    update_check(addr, signal_strength=1)
+                else:
+                    update_check(addr, signal_strength=0)
 
-            if all([
-                basic_filter(token),
-                rugcheck_filter(token.address),
-                holders_distribution_filter(token.address)
-            ]):
-                print(f"[✅] Token PASSED all filters: {token.symbol}")
-                send_token_alert(token)
-                if config.AUTO_BUY_ENABLED:
-                    attempt_buy_token(token)
+            except Exception as e:
+                print(f"[ERROR] Token {addr} processing failed: {e}")
+                update_check(addr, signal_strength=0)
 
-                update_check(token_addr, signal_strength=1)
-
-        # Purge old inactive tokens
-        to_remove = get_ready_for_purge()
-        for mint in to_remove:
-            print(f"[PURGE] Removing stale token: {mint}")
+        # Remove old/inactive tokens
+        purge = get_ready_for_purge()
+        for mint in purge:
+            print(f"[CACHE 🗑️] Removing inactive token {mint}")
             remove_token(mint)
 
         await asyncio.sleep(300)
