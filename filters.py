@@ -65,24 +65,28 @@ def holders_distribution_filter(token_address: str) -> bool:
     try:
         pubkey = Pubkey.from_string(token_address)
 
-        # Fetch supply
+        # Get total supply
         supply_resp = rpc_client.get_token_supply(pubkey)
         total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
             print(f"[WARN] Token {token_address} has zero supply.")
             return False
 
-        # Fetch top holders
+        # Get largest holders
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
         holders = holders_resp.value
-        for idx, acc in enumerate(holders[:10]):
-            amount = int(acc.amount)
+        if not holders:
+            print(f"[WARN] Token {token_address} has no holder data.")
+            return False
+
+        for idx, holder in enumerate(holders[:10]):
+            amount = int(holder.amount)
             if amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
-                print(f"[FILTER ❌] Token {token_address}: Top holder #{idx+1} has too much.")
+                print(f"[FILTER ❌] Token {token_address}: Holder #{idx+1} holds too much.")
                 return False
+
     except Exception as e:
         print(f"[ERROR] Holder check failed for {token_address}: {e}")
         return False
 
     return True
-
