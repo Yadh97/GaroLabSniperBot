@@ -1,3 +1,4 @@
+
 # Filename: telegram_alert.py
 
 import os
@@ -21,7 +22,6 @@ def send_token_alert(token):
     chart_link = f"https://dexscreener.com/solana/{pair}"
     solscan_link = f"https://solscan.io/token/{address}"
 
-    # Build message
     msg = f"""
 🚀 *New Token Detected*
 
