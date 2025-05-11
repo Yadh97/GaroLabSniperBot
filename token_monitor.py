@@ -13,6 +13,7 @@ from token_cache import (
     get_ready_for_purge,
     remove_token
 )
+import requests
 from models import TokenInfo
 import config
 
