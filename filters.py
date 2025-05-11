@@ -1,11 +1,10 @@
 # Filename: filters.py
 
-import requests
+
 from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
 
-# Setup RPC connection
 rpc_client = Client(config.RPC_URL)
 
 def basic_filter(token) -> bool:
@@ -62,35 +61,27 @@ def rugcheck_filter(token_address: str) -> bool:
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
-    """
-    ✅ Ensures none of the top 10 holders hold > X% of supply.
-    """
     try:
         pubkey = Pubkey.from_string(token_address)
 
-        # 1. Total supply
+        # Fetch supply
         supply_resp = rpc_client.get_token_supply(pubkey)
-        supply_value = supply_resp.get("result", {}).get("value", {})
-        total_amount_str = supply_value.get("amount")
-        if total_amount_str is None:
-            print(f"[HOLDERS ❌] Could not fetch supply for {token_address}")
-            return False
-        total_amount = int(total_amount_str)
+        total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
-            print(f"[HOLDERS ❌] Token {token_address} has 0 supply.")
+            print(f"[WARN] Token {token_address} has zero supply.")
             return False
 
-        # 2. Largest holders
+        # Fetch top holders
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
-        holders_info = holders_resp.get("result", {}).get("value", [])
-        for idx, holder in enumerate(holders_info[:10]):
-            holder_amount = int(holder.get("amount", 0))
-            if holder_amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
-                print(f"[HOLDERS ❌] Top holder #{idx+1} owns >= {config.TOP_HOLDER_MAX_PERCENT}% of supply.")
+        holders = holders_resp.value
+        for idx, acc in enumerate(holders[:10]):
+            amount = int(acc.amount)
+            if amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
+                print(f"[FILTER ❌] Token {token_address}: Top holder #{idx+1} has too much.")
                 return False
-
     except Exception as e:
         print(f"[ERROR] Holder check failed for {token_address}: {e}")
         return False
 
     return True
+
