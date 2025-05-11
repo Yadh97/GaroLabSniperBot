@@ -1,37 +1,32 @@
+
 # Filename: config.py
 
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-# config.py (only show what's needed for this task)
 
-CACHE_CLEANUP_INTERVAL_SECONDS = 300  # how often to cleanup expired tokens
+# Solana network and wallet configuration
+RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
 
-# === TELEGRAM ALERTING ===
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+# Telegram bot configuration
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# === WALLET + RPC ===
-WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY")
-RPC_URL = os.getenv("RPC_URL", "https://api.mainnet-beta.solana.com")
+# Filtering thresholds
+MIN_LIQUIDITY_USD = float(os.getenv("MIN_LIQUIDITY_USD", 20000))
+MAX_FDV_USD = float(os.getenv("MAX_FDV_USD", 500000))
+TOP_HOLDER_MAX_PERCENT = float(os.getenv("TOP_HOLDER_MAX_PERCENT", 5))
 
-# === SNIPING CONTROL ===
+# RugCheck API base
+RUGCHECK_BASE_URL = os.getenv("RUGCHECK_BASE_URL", "https://api.rugcheck.xyz/token")
+
+# Price assumptions
+SOL_PRICE_USD = float(os.getenv("SOL_PRICE_USD", 150.0))  # Used for FDV and liquidity calcs
+
+# Behavior toggles
 AUTO_BUY_ENABLED = os.getenv("AUTO_BUY_ENABLED", "false").lower() == "true"
 
-# === FILTER CONFIGURATION ===
-MIN_LIQUIDITY_USD = int(os.getenv("MIN_LIQUIDITY_USD", 20000))
-MAX_FDV_USD = int(os.getenv("MAX_FDV_USD", 500000))
-TOP_HOLDER_MAX_PERCENT = int(os.getenv("TOP_HOLDER_MAX_PERCENT", 5))
-
-# === RUGCHECK ===
-RUGCHECK_BASE_URL = "https://api.rugcheck.xyz/token"
-
-# === MINT ADDRESSES ===
-SOL_MINT_ADDRESS = "So11111111111111111111111111111111111111112"  # Wrapped SOL
-
-# === MORALIS BACKUP API (optional) ===
-MORALIS_API_KEY = os.getenv("MORALIS_API_KEY", "")
-
-# === WORKING MODE ===
-TEST_MODE = os.getenv("TEST_MODE", "true").lower() == "true"
+# Cache cleanup interval (seconds)
+CACHE_CLEANUP_INTERVAL_SECONDS = int(os.getenv("CACHE_CLEANUP_INTERVAL_SECONDS", 300))
