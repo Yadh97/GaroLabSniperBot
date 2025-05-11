@@ -1,12 +1,13 @@
-# main.py
+# Filename: main.py
 
 import asyncio
 import time
 from websocket_listener import listen_new_tokens
 from token_cache import add_token_if_new, cleanup_expired_tokens, token_cache
-import config
 from token_monitor import recheck_tokens_loop
+import config
 
+# Central stats tracker
 stats = {
     "start_time": time.time(),
     "token_count": 0,
@@ -14,7 +15,11 @@ stats = {
     "last_cleanup": None,
 }
 
+
 async def consume_tokens():
+    """
+    Listen to Pump.fun for new tokens and add to cache.
+    """
     async for token in listen_new_tokens():
         if token:
             print(f"[WS] New token from Pump.fun: {token['symbol']} ({token['mint']})")
@@ -26,13 +31,21 @@ async def consume_tokens():
                 "timestamp": time.strftime("%H:%M:%S")
             }
 
+
 async def cleanup_loop():
+    """
+    Periodically remove expired tokens from memory cache.
+    """
     while True:
         cleanup_expired_tokens()
         stats["last_cleanup"] = time.strftime("%H:%M:%S")
         await asyncio.sleep(config.CACHE_CLEANUP_INTERVAL_SECONDS)
 
+
 async def log_stats_loop():
+    """
+    Console dashboard to monitor bot health and performance every minute.
+    """
     while True:
         uptime = int(time.time() - stats["start_time"])
         hours, rem = divmod(uptime, 3600)
@@ -49,16 +62,17 @@ async def log_stats_loop():
         if stats['last_cleanup']:
             print(f"🧹 Last Cleanup: {stats['last_cleanup']}")
         print("==============================\n")
+
         await asyncio.sleep(60)
 
+
 async def main():
-    print("[INFO] Solana Sniper Bot started.")
+    print("[INFO] Solana Sniper Bot started. Tracking tokens in real time.")
     await asyncio.gather(
         consume_tokens(),
         cleanup_loop(),
         log_stats_loop(),
         recheck_tokens_loop()
-
     )
 
 if __name__ == "__main__":
