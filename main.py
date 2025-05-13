@@ -5,7 +5,15 @@ import threading
 import config
 from token_monitor import TokenMonitor
 from websocket_listener import listen_new_tokens
-from token_cache import TokenCache
+from token_cache import (
+    add_token_if_new,
+    cleanup_expired_tokens,
+    update_check,
+    get_due_for_check,
+    get_ready_for_purge,
+    remove_token,
+    token_cache
+)
 
 def main():
     """Main entry point for the Solana Sniper Bot."""
@@ -19,8 +27,7 @@ def main():
     logging.info("Starting Solana Sniper Bot...")
 
     # Initialize shared token cache for communication between threads
-    token_cache = TokenCache()
-
+ 
     # Initialize the WebSocket listener (for new token/pool events) and token monitor
     ws_listener = WebSocketListener(config.RPC_WEBSOCKET_ENDPOINT, token_cache)
     token_monitor = TokenMonitor(token_cache)
