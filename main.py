@@ -1,57 +1,64 @@
+# Filename: main.py
+
+import asyncio
 import time
-import logging
-import threading
-
-import config
-from token_monitor import TokenMonitor
 from websocket_listener import listen_new_tokens
-from token_cache import (
-    add_token_if_new,
-    cleanup_expired_tokens,
-    update_check,
-    get_due_for_check,
-    get_ready_for_purge,
-    remove_token,
-    token_cache
-)
+from token_cache import add_token_if_new, cleanup_expired_tokens, token_cache
+from token_monitor import recheck_tokens_loop
+import config
 
-def main():
-    """Main entry point for the Solana Sniper Bot."""
-    # Configure logging with timestamp and level from config
-    log_level = getattr(logging, config.LOG_LEVEL.upper(), logging.INFO)
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+stats = {
+    "start_time": time.time(),
+    "token_count": 0,
+    "last_token": None,
+    "last_cleanup": None,
+}
+
+async def consume_tokens():
+    async for token in listen_new_tokens():
+        if token:
+            print(f"[WS] New token from Pump.fun: {token['symbol']} ({token['mint']})")
+            add_token_if_new(token['mint'], token)
+            stats["token_count"] += 1
+            stats["last_token"] = {
+                "symbol": token['symbol'],
+                "mint": token['mint'],
+                "timestamp": time.strftime("%H:%M:%S")
+            }
+
+async def cleanup_loop():
+    while True:
+        cleanup_expired_tokens()
+        stats["last_cleanup"] = time.strftime("%H:%M:%S")
+        await asyncio.sleep(config.CACHE_CLEANUP_INTERVAL_SECONDS)
+
+async def log_stats_loop():
+    while True:
+        uptime = int(time.time() - stats["start_time"])
+        hours, rem = divmod(uptime, 3600)
+        minutes, seconds = divmod(rem, 60)
+        uptime_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+        print("\n==============================")
+        print(f"🧠 BOT STATUS REPORT")
+        print(f"⏱️ Uptime: {uptime_str}")
+        print(f"📦 Tokens Seen: {stats['token_count']}")
+        print(f"🧠 Current Cache Size: {len(token_cache)}")
+        if stats['last_token']:
+            print(f"🆕 Last Token: {stats['last_token']['symbol']} at {stats['last_token']['timestamp']}")
+        if stats['last_cleanup']:
+            print(f"🧹 Last Cleanup: {stats['last_cleanup']}")
+        print("==============================\n")
+        await asyncio.sleep(60)
+
+async def main():
+    print("[INFO] Solana Sniper Bot started.")
+    await asyncio.gather(
+        consume_tokens(),
+        cleanup_loop(),
+        log_stats_loop(),
+        recheck_tokens_loop()
     )
-    logging.info("Starting Solana Sniper Bot...")
-
-    # Initialize shared token cache for communication between threads
- 
-    # Initialize the WebSocket listener (for new token/pool events) and token monitor
-    ws_listener = listen_new_tokens(config.RPC_WEBSOCKET_ENDPOINT, token_cache)
-    token_monitor = TokenMonitor(token_cache)
-
-    # Start the WebSocket listener and token monitor in separate threads
-    ws_thread = threading.Thread(target=ws_listener.run, name="listen_new_tokens", daemon=True)
-    monitor_thread = threading.Thread(target=token_monitor.run, name="TokenMonitor", daemon=True)
-    ws_thread.start()
-    monitor_thread.start()
-    logging.info("WebSocket listener and Token monitor threads started.")
-
-    # Keep the main thread alive to allow background threads to run
-    try:
-        while True:
-            time.sleep(60)
-            # Optionally, we could monitor thread health here and restart if needed
-    except KeyboardInterrupt:
-        logging.info("Shutdown signal received. Stopping bot...")
-        # Graceful shutdown: instruct threads to stop (if implemented) and join
-        token_monitor.stop()  # If TokenMonitor has a stop mechanism
-        ws_listener.stop()    # If WebSocketListener has a stop mechanism
-        ws_thread.join(timeout=5)
-        monitor_thread.join(timeout=5)
-        logging.info("Bot stopped.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
