@@ -29,11 +29,11 @@ def main():
     # Initialize shared token cache for communication between threads
  
     # Initialize the WebSocket listener (for new token/pool events) and token monitor
-    ws_listener = WebSocketListener(config.RPC_WEBSOCKET_ENDPOINT, token_cache)
+    ws_listener = listen_new_tokens(config.RPC_WEBSOCKET_ENDPOINT, token_cache)
     token_monitor = TokenMonitor(token_cache)
 
     # Start the WebSocket listener and token monitor in separate threads
-    ws_thread = threading.Thread(target=ws_listener.run, name="WebSocketListener", daemon=True)
+    ws_thread = threading.Thread(target=ws_listener.run, name="listen_new_tokens", daemon=True)
     monitor_thread = threading.Thread(target=token_monitor.run, name="TokenMonitor", daemon=True)
     ws_thread.start()
     monitor_thread.start()
