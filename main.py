@@ -4,7 +4,7 @@ import threading
 
 import config
 from token_monitor import TokenMonitor
-from websocket_listener import WebSocketListener
+from websocket_listener import listen_new_tokens
 from token_cache import TokenCache
 
 def main():
