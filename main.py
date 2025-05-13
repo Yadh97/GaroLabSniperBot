@@ -1,5 +1,3 @@
-# Filename: main.py
-
 import asyncio
 import time
 from websocket_listener import listen_new_tokens
