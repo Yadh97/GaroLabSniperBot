@@ -5,13 +5,12 @@ from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
 
-# Solana RPC client
-rpc_client = Client(config.RPC_URL)
-
+# Initialize Solana RPC client with proper commitment
+rpc_client = Client(config.RPC_HTTP_ENDPOINT, commitment=config.COMMITMENT)
 
 def basic_filter(token) -> bool:
     """
-    Passes if token meets liquidity and market cap thresholds.
+    Filters tokens by basic liquidity and market cap.
     """
     if token.liquidity_usd < config.MIN_LIQUIDITY_USD:
         print(f"[FILTER ❌] {token.symbol}: Liquidity too low (${token.liquidity_usd})")
@@ -21,11 +20,9 @@ def basic_filter(token) -> bool:
         return False
     return True
 
-
 def rugcheck_filter(token_address: str) -> bool:
     """
-    RugCheck API filter: rejects token if flagged as honeypot/blacklist
-    or has active mint/freeze authority.
+    Rejects tokens flagged by RugCheck or with unsafe mint/freeze authorities.
     """
     url = f"{config.RUGCHECK_BASE_URL}/{token_address}/report"
     try:
@@ -51,22 +48,21 @@ def rugcheck_filter(token_address: str) -> bool:
         return False
     return True
 
-
 def holders_distribution_filter(token_address: str) -> bool:
     """
-    Checks top holders: rejects token if any of the top 10 holds > X%.
+    Rejects tokens if any of the top 10 holders owns too much of supply.
     """
     try:
         pubkey = Pubkey.from_string(token_address)
 
-        # Get total token supply
+        # Fetch total supply
         supply_resp = rpc_client.get_token_supply(pubkey)
         total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
             print(f"[WARN] Token {token_address} has zero supply.")
             return False
 
-        # Get top holders
+        # Fetch top holders
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
         for idx, holder in enumerate(holders_resp.value[:10]):
             holder_amount = int(holder.amount.amount)
