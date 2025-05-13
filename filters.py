@@ -81,7 +81,7 @@ def holders_distribution_filter(token_address: str) -> bool:
             return False
 
         for idx, holder in enumerate(holders[:10]):
-            amount = int(holder.amount)
+            amount = int(holder.amount.amount)
             if amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
                 print(f"[FILTER ❌] Token {token_address}: Holder #{idx+1} holds too much.")
                 return False
