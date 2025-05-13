@@ -11,8 +11,8 @@ RPC_URL = os.getenv("SOLANA_RPC_URL", "https://lb.drpc.org/ogrpc?network=solana&
 WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
 
 # Telegram bot configuration
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7429739371:AAHzTsw2RlNdIW_mC8zLADGTpdXn0ENsaH4")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "5262711263")
 
 # Filtering thresholds
 MIN_LIQUIDITY_USD = float(os.getenv("MIN_LIQUIDITY_USD", 20000))
