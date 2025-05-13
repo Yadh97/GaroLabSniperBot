@@ -9,7 +9,7 @@ from solana.rpc.types import TxOpts
 import config
 
 # Initialize RPC client
-rpc_client = Client(config.RPC_URL)
+rpc_client = Client(config.RPC_HTTP_ENDPOINT)
 
 # User keypair and address
 USER_KEYPAIR = None
