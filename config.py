@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Solana network and wallet configuration
-RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+RPC_URL = os.getenv("SOLANA_RPC_URL", "https://lb.drpc.org/ogrpc?network=solana&dkey=AqyInikScUf7npfryXf5ezpyXFAwL-sR8LhafpPAH9l9")
 WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
 
 # Telegram bot configuration
