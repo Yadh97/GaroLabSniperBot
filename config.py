@@ -17,7 +17,8 @@ WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7429739371:AAHzTsw2RlNdIW_mC8zLADGTpdXn0ENsaH4")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "5262711263")
 
-MIN_LIQUIDITY_USD = float(os.getenv("MIN_LIQUIDITY_USD", 20000))           # Min liquidity to accept
+MIN_LIQUIDITY_USD = float(os.getenv("MIN_LIQUIDITY_USD", 20000))
+MAX_FDV_USD = float(os.getenv("MAX_FDV_USD", 500_000))# Min liquidity to accept
 MAX_FDV = float(os.getenv("MAX_FDV_USD", 5000000))                         # Max FDV (Fully Diluted Valuation)
 MAX_HOLDER_PERCENT = float(os.getenv("TOP_HOLDER_MAX_PERCENT", 5))        # Max % for top holder (normal tokens)
 MAX_HOLDER_PERCENT_NEW = float(os.getenv("TOP_HOLDER_MAX_PERCENT_NEW", 80))  # Max % for top holder if <5 mins old
