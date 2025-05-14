@@ -7,7 +7,7 @@ import config
 
 class WebSocketListener:
     def __init__(self, on_token_callback: Callable[[dict], None]):
-        self.uri = config.RPC_WEBSOCKET_ENDPOINT
+        self.uri = "wss://pumpportal.fun/api/data"
         self.on_token_callback = on_token_callback
         self._stop_event = threading.Event()
 
