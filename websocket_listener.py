@@ -25,6 +25,7 @@ class WebSocketListener:
                     try:
                         msg = json.loads(raw_msg)
                         if isinstance(msg, dict) and msg.get("txType") == "create":
+                            print(f"[WS] Message received: {msg}")
                             token_info = {
                                 "name": msg.get("name", "Unknown"),
                                 "symbol": msg.get("symbol", "???"),
