@@ -51,25 +51,33 @@ def rugcheck_filter(token_address: str) -> bool:
 
 def holders_distribution_filter(token_address: str) -> bool:
     """
-    Filters tokens where any of the top holders hold too much of total supply.
+    Rejects tokens if any of the top 10 holders owns too much of supply.
     """
     try:
         pubkey = Pubkey.from_string(token_address)
 
-        # Fetch total supply
+        # 1. Safe supply fetch
         supply_resp = rpc_client.get_token_supply(pubkey)
-        total_amount = int(supply_resp.value.amount.amount)
+        if not hasattr(supply_resp, "value") or not hasattr(supply_resp.value, "amount"):
+            print(f"[WARN] Token {token_address} has no supply data.")
+            return False
+
+        total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
             print(f"[WARN] Token {token_address} has zero supply.")
             return False
 
-        # Fetch top holders
+        # 2. Safe holder fetch
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
+        if not hasattr(holders_resp, "value") or not isinstance(holders_resp.value, list):
+            print(f"[WARN] Token {token_address} has no holders list.")
+            return False
+
+        # 3. Distribution check
         for idx, holder in enumerate(holders_resp.value[:10]):
-            holder_amount = int(holder.amount.amount)
-            share_percent = (holder_amount / total_amount) * 100
-            if share_percent > config.TOP_HOLDER_MAX_PERCENT:
-                print(f"[FILTER ❌] Token {token_address}: Holder #{idx+1} holds {share_percent:.2f}%. Too much.")
+            amount = int(holder.amount.amount)  # new format from solders
+            if amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
+                print(f"[FILTER ❌] Token {token_address}: Holder #{idx+1} holds too much.")
                 return False
 
     except Exception as e:
