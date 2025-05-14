@@ -17,14 +17,12 @@ from models import TokenInfo
 import config
 from queue import Queue
 
-# This queue is shared with the WebSocket listener
+# Shared event queue (populated by websocket_listener)
 event_queue: Queue = Queue()
-
 
 def process_token_event(event: dict):
     """
-    Accepts raw token event dict from websocket and applies filtering.
-    If all filters pass, it triggers an alert and simulated buy.
+    Processes a token event: applies filters, sends alert, simulates buy.
     """
     try:
         mint = event.get("mint")
@@ -43,6 +41,7 @@ def process_token_event(event: dict):
             source="pumpfun"
         )
 
+        # === FILTERS ===
         if not basic_filter(token_info):
             print(f"[FILTER ❌] {symbol}: Basic filter failed.")
             return
@@ -55,8 +54,8 @@ def process_token_event(event: dict):
             print(f"[FILTER ❌] {symbol}: Holder distribution failed.")
             return
 
-        print(f"[✅ FILTER PASS] {symbol} passed all filters!")
-
+        # === SUCCESS PATH ===
+        print(f"[✅] {symbol} passed all filters! Triggering alert and (optional) buy.")
         send_token_alert(token_info)
 
         if config.AUTO_BUY_ENABLED:
@@ -70,7 +69,7 @@ def process_token_event(event: dict):
 
 async def token_consumer_loop():
     """
-    Continuously consumes token creation events from shared queue and processes them.
+    Continuously consumes token events from shared queue and applies filtering logic.
     """
     while True:
         try:
@@ -81,7 +80,7 @@ async def token_consumer_loop():
                     add_token_if_new(mint, event)
                     process_token_event(event)
             else:
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)
         except Exception as e:
             print(f"[ERROR] Consumer loop crashed: {e}")
             await asyncio.sleep(1)
@@ -89,8 +88,7 @@ async def token_consumer_loop():
 
 async def recheck_tokens_loop():
     """
-    Periodically re-checks previously tracked tokens for updated eligibility,
-    sends alerts or purges from cache based on updated status.
+    Periodically re-evaluates cached tokens and purges expired entries.
     """
     while True:
         try:
@@ -102,11 +100,15 @@ async def recheck_tokens_loop():
                 try:
                     process_token_event(event)
                 except Exception as e:
-                    print(f"[RECHECK ERROR] Token {mint} failed recheck: {e}")
+                    print(f"[RECHECK ERROR] Token {mint} recheck failed: {e}")
+
             # Purge expired
-            for mint in get_ready_for_purge():
+            expired = get_ready_for_purge()
+            for mint in expired:
                 print(f"[PURGE] Removing expired token: {mint}")
                 remove_token(mint)
+
         except Exception as e:
             print(f"[ERROR] Recheck loop crashed: {e}")
-        await asyncio.sleep(300)  # Check every 5 minutes
+
+        await asyncio.sleep(300)  # Repeat every 5 minutes
