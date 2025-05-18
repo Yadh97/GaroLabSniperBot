@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Solana network and wallet configuration
-RPC_HTTP_ENDPOINT = os.getenv("SOLANA_RPC_URL", "https://mainnet.helius-rpc.com/?api-key=a3688971-6f9a-4bda-8001-9c618a420cf8")
-RPC_WEBSOCKET_ENDPOINT = os.getenv("RPC_WEBSOCKET_ENDPOINT", "wss://mainnet.helius-rpc.com/?api-key=a3688971-6f9a-4bda-8001-9c618a420cf8")
+RPC_HTTP_ENDPOINT = os.getenv("SOLANA_RPC_URL", "https://mainnet.helius-rpc.com/?api-key=d96ee388-2b3f-405c-9865-0221d03c20c1")
+RPC_WEBSOCKET_ENDPOINT = os.getenv("RPC_WEBSOCKET_ENDPOINT", "wss://mainnet.helius-rpc.com/?api-key=d96ee388-2b3f-405c-9865-0221d03c20c1")
 COMMITMENT = os.getenv("COMMITMENT_LEVEL", "finalized")
 
 WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
