@@ -5,24 +5,29 @@ from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 import config
 
-# Initialize Solana RPC client with correct commitment level
+# Use the configured RPC with chosen commitment level
 rpc_client = Client(config.RPC_HTTP_ENDPOINT, commitment=config.COMMITMENT)
+
 
 def basic_filter(token) -> bool:
     """
-    Basic token screen: filters by liquidity and market cap bounds.
+    Basic filter that checks minimum liquidity and FDV bounds.
     """
     if token.liquidity_usd < config.MIN_LIQUIDITY_USD:
-        print(f"[FILTER ❌] {token.symbol}: Liquidity too low (${token.liquidity_usd})")
+        print(f"[FILTER ❌] {token.symbol}: Liquidity too low (${token.liquidity_usd:,.2f})")
         return False
     if token.fdv <= 0 or token.fdv > config.MAX_FDV_USD:
-        print(f"[FILTER ❌] {token.symbol}: FDV (${token.fdv}) out of range.")
+        print(f"[FILTER ❌] {token.symbol}: FDV (${token.fdv:,.2f}) out of range.")
         return False
     return True
 
+
 def rugcheck_filter(token_address: str) -> bool:
     """
-    Validate token safety using RugCheck. Reject if flagged as dangerous.
+    RugCheck API screen. Token is rejected if:
+    - RugCheck deems it dangerous
+    - It has a mint/freeze authority
+    - It's blacklisted or known bad actors are involved
     """
     url = f"{config.RUGCHECK_BASE_URL}/{token_address}/report"
     try:
@@ -37,48 +42,51 @@ def rugcheck_filter(token_address: str) -> bool:
         return False
 
     if data.get("rugged") is True:
+        print(f"[FILTER ❌] {token_address}: Rugged token.")
         return False
     if str(data.get("result", "")).lower() in ("danger", "blacklisted"):
+        print(f"[FILTER ❌] {token_address}: RugCheck marked dangerous/blacklisted.")
         return False
     if data.get("mintAuthority") not in (None, "", "null"):
+        print(f"[FILTER ❌] {token_address}: Mint authority detected.")
         return False
     if data.get("freezeAuthority") not in (None, "", "null"):
+        print(f"[FILTER ❌] {token_address}: Freeze authority detected.")
         return False
     if data.get("knownAccounts"):
+        print(f"[FILTER ❌] {token_address}: Involves known accounts.")
         return False
 
     return True
 
+
 def holders_distribution_filter(token_address: str) -> bool:
     """
-    Rejects tokens if any of the top 10 holders owns too much of supply.
+    Filters tokens with unhealthy holder concentration.
+    Rejects if any of top 10 holders exceed configured percentage.
     """
     try:
         pubkey = Pubkey.from_string(token_address)
 
-        # 1. Safe supply fetch
+        # Fetch total token supply
         supply_resp = rpc_client.get_token_supply(pubkey)
-        if not hasattr(supply_resp, "value") or not hasattr(supply_resp.value, "amount"):
-            print(f"[WARN] Token {token_address} has no supply data.")
-            return False
-
         total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
             print(f"[WARN] Token {token_address} has zero supply.")
             return False
 
-        # 2. Safe holder fetch
+        # Fetch top holders
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
-        if not hasattr(holders_resp, "value") or not isinstance(holders_resp.value, list):
-            print(f"[WARN] Token {token_address} has no holders list.")
-            return False
+        holders = holders_resp.value[:10] if holders_resp.value else []
 
-        # 3. Distribution check
-        for idx, holder in enumerate(holders_resp.value[:10]):
-            amount = int(holder.amount.amount)  # new format from solders
-            if amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
-                print(f"[FILTER ❌] Token {token_address}: Holder #{idx+1} holds too much.")
-                return False
+        for idx, holder in enumerate(holders):
+            try:
+                holder_amount = int(holder.amount.amount)  # new solders format
+                if holder_amount * 100 >= total_amount * config.TOP_HOLDER_MAX_PERCENT:
+                    print(f"[FILTER ❌] {token_address}: Holder #{idx+1} holds too much.")
+                    return False
+            except Exception as parse_err:
+                print(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
 
     except Exception as e:
         print(f"[ERROR] Holder check failed for {token_address}: {e}")
