@@ -16,8 +16,10 @@ from token_cache import (
 from telegram_alert import send_token_alert
 from filters import basic_filter, holders_distribution_filter
 from trader import attempt_buy_token
+from models import TokenInfo
 import config
 
+# ====== Runtime Stats ======
 stats = {
     "start_time": time.time(),
     "token_count": 0,
@@ -27,72 +29,77 @@ stats = {
     "alerts_sent": 0,
 }
 
-def handle_new_token(token):
-    mint = token.get("mint")
+
+# ====== Handle Token Creation Event ======
+def handle_new_token(event: dict):
+    mint = event.get("mint")
+    symbol = event.get("symbol", "???")
     if not mint:
-        print("[WARN] Token has no mint address.")
+        print("[WARN] Missing mint address.")
         return
 
-    print(f"[WS] New token from Pump.fun: {token['symbol']} ({mint})")
-    add_token_if_new(mint, token)
+    print(f"[WS] New token from Pump.fun: {symbol} ({mint})")
+    add_token_if_new(mint, event)
 
-    # Apply filtering logic
     try:
-        class TokenObj:
-            def __init__(self, mint, symbol, data):
-                self.address = mint
-                self.symbol = symbol
-                self.name = data.get("name")
-                self.price_usd = 0.001
-                self.liquidity_usd = data.get("solAmount", 0) * config.SOL_PRICE_USD
-                self.fdv = data.get("marketCapSol", 0) * config.SOL_PRICE_USD
-                self.pair_id = ""
-                self.source = "pumpfun"
+        token_obj = TokenInfo(
+            address=mint,
+            name=event.get("name", "Unknown"),
+            symbol=symbol,
+            price_usd=0.001,
+            liquidity_usd=event.get("solAmount", 0) * config.SOL_PRICE_USD,
+            fdv=event.get("marketCapSol", 0) * config.SOL_PRICE_USD,
+            pair_id="",
+            source="pumpfun"
+        )
 
-        token_obj = TokenObj(mint, token['symbol'], token)
         if all([
             basic_filter(token_obj),
             holders_distribution_filter(token_obj.address),
         ]):
+            print(f"[✅ FILTER PASS] {symbol} qualifies!")
             stats["qualified"] += 1
-            print(f"[✅] Qualified Token: {token_obj.symbol} ({mint})")
             send_token_alert(token_obj)
             stats["alerts_sent"] += 1
+
             if config.AUTO_BUY_ENABLED:
                 attempt_buy_token(token_obj)
+
             update_check(mint, signal_strength=1)
         else:
             update_check(mint, signal_strength=0)
+
     except Exception as e:
         print(f"[ERROR] Token {mint} processing failed: {e}")
 
     stats["token_count"] += 1
     stats["last_token"] = {
-        "symbol": token.get("symbol"),
+        "symbol": symbol,
         "mint": mint,
         "timestamp": time.strftime("%H:%M:%S")
     }
 
+
+# ====== Recheck Loop ======
 async def recheck_tokens_loop():
     while True:
-        due = get_due_for_check(interval=300)
-        print(f"[RECHECK] {len(due)} tokens due for check.")
-        for token in due:
-            mint = token["address"]
-            data = token["data"]
+        due_tokens = get_due_for_check(interval=300)
+        print(f"[RECHECK] {len(due_tokens)} tokens due for check.")
+        for entry in due_tokens:
+            mint = entry["address"]
+            event = entry["data"]
             try:
-                class TokenObj:
-                    def __init__(self, mint, symbol, data):
-                        self.address = mint
-                        self.symbol = data.get("symbol", "???")
-                        self.name = data.get("name")
-                        self.price_usd = 0.001
-                        self.liquidity_usd = data.get("solAmount", 0) * config.SOL_PRICE_USD
-                        self.fdv = data.get("marketCapSol", 0) * config.SOL_PRICE_USD
-                        self.pair_id = ""
-                        self.source = "pumpfun"
+                token_obj = TokenInfo(
+                    address=mint,
+                    name=event.get("name", "Unknown"),
+                    symbol=event.get("symbol", "???"),
+                    price_usd=0.001,
+                    liquidity_usd=event.get("solAmount", 0) * config.SOL_PRICE_USD,
+                    fdv=event.get("marketCapSol", 0) * config.SOL_PRICE_USD,
+                    pair_id="",
+                    source="pumpfun"
+                )
 
-                token_obj = TokenObj(mint, data.get("symbol", "???"), data)
                 if all([
                     basic_filter(token_obj),
                     holders_distribution_filter(token_obj.address),
@@ -100,22 +107,28 @@ async def recheck_tokens_loop():
                     print(f"[RECHECK ✅] {token_obj.symbol} now qualifies!")
                     send_token_alert(token_obj)
                     stats["alerts_sent"] += 1
+
                     if config.AUTO_BUY_ENABLED:
                         attempt_buy_token(token_obj)
+
                     update_check(mint, signal_strength=1)
                 else:
                     update_check(mint, signal_strength=0)
             except Exception as e:
-                print(f"[ERROR] Recheck failed for token {mint}: {e}")
+                print(f"[RECHECK ERROR] {mint}: {e}")
 
         await asyncio.sleep(300)
 
+
+# ====== Cleanup Loop ======
 async def cleanup_loop():
     while True:
         cleanup_expired_tokens()
         stats["last_cleanup"] = time.strftime("%H:%M:%S")
         await asyncio.sleep(config.CACHE_CLEANUP_INTERVAL_SECONDS)
 
+
+# ====== Logging Loop ======
 async def log_stats_loop():
     while True:
         uptime = int(time.time() - stats["start_time"])
@@ -137,21 +150,24 @@ async def log_stats_loop():
         print("==============================\n")
         await asyncio.sleep(60)
 
+
+# ====== Entrypoint ======
 def main():
     print("[INFO] Starting Solana Sniper Bot...")
 
-    # Start websocket listener in a thread
+    # Start WebSocket listener in background thread
     ws_listener = WebSocketListener(on_token_callback=handle_new_token)
     ws_thread = threading.Thread(target=ws_listener.run, name="ws_listener", daemon=True)
     ws_thread.start()
 
-    # Start recheck and stats loops
+    # Async Loops
     loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(
         recheck_tokens_loop(),
         cleanup_loop(),
         log_stats_loop(),
     ))
+
 
 if __name__ == "__main__":
     main()
