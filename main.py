@@ -4,6 +4,7 @@ import time
 import threading
 import asyncio
 from websocket_listener import WebSocketListener
+from simulated_trader import get_simulated_pnl_report
 from token_cache import (
     add_token_if_new,
     update_check,
@@ -135,7 +136,7 @@ async def log_stats_loop():
         hours, rem = divmod(uptime, 3600)
         minutes, seconds = divmod(rem, 60)
         uptime_str = f"{hours:02}:{minutes:02}:{seconds:02}"
-
+        print(get_simulated_pnl_report())
         print("\n==============================")
         print(f"🧠 BOT STATUS REPORT")
         print(f"⏱️ Uptime: {uptime_str}")
