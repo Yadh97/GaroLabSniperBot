@@ -5,6 +5,7 @@ import time
 from filters import basic_filter, rugcheck_filter, holders_distribution_filter
 from telegram_alert import send_token_alert
 from trader import attempt_buy_token
+from simulated_trader import simulate_buy
 from token_cache import (
     token_cache,
     update_check,
@@ -59,8 +60,8 @@ def process_token_event(event: dict):
         send_token_alert(token_info)
 
         if config.AUTO_BUY_ENABLED:
-            attempt_buy_token(token_info)
-
+            # attempt_buy_token(token_info)
+            simulate_buy(token_info)
         update_check(mint, signal_strength=1)
 
     except Exception as e:
