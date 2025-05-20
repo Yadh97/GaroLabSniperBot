@@ -61,7 +61,7 @@ DEFAULT_CONFIG = {
     
     # Paramètres RPC
     "RPC_URL": "https://api.mainnet-beta.solana.com",
-    "RPC_HTTP_ENDPOINT": "https://mainnet.helius-rpc.com/?api-key=d96ee388-2b3f-405c-9865-0221d03c20c1"
+    "RPC_HTTP_ENDPOINT": "https://mainnet.helius-rpc.com/?api-key=d96ee388-2b3f-405c-9865-0221d03c20c1",
     "PRIVATE_RPC_URL": "",
     
     # Paramètres du wallet
