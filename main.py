@@ -18,7 +18,7 @@ from config import load_config
 from data_sources import DataSource
 from momentum_analyzer import MomentumAnalyzer
 from trading_strategies import TradingStrategyManager
-from order_routing import SmartOrderRouter
+from order_routing import OrderRouter
 from trader import Trader
 from simulated_trader import SimulatedTrader
 from token_cache import TokenCache
