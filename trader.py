@@ -8,9 +8,10 @@ from solana.rpc.api import Client
 from solana.rpc.types import TxOpts
 from base64 import b64decode
 import config
+from config import load_config
 
-# Initialize HTTP RPC client
-rpc_client = Client(config.get("RPC_URL"))
+config_data = load_config()
+rpc_client = Client(config_data["RPC_HTTP_ENDPOINT"])
 
 # Wallet state
 USER_KEYPAIR = None
