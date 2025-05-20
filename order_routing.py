@@ -344,8 +344,7 @@ class OrderRouter:
             logger.error(f"Error getting route from {provider_name}: {e}")
             return None
     
-    async def _get_jupiter_route(self, input_mint: str, output_mint: str, 
-                               amount_in: int, slippage: float) -> Optional[RouteInfo]:
+    async def _get_jupiter_route(self, input_mint: str, output_mint: str, amount_in: int, slippage: float) -> Optional[RouteInfo]:
         """
         Récupère un itinéraire depuis Jupiter
         
@@ -426,5 +425,10 @@ class OrderRouter:
                 fee=fee_sol,
                 tx_data=swap_data,
                 gas_estimate=gas_estimate,
-                priority_fee=pr
-(Content truncated due to size limit. Use line ranges to read in chunks)
+                priority_fee=priority_fee,
+                total_cost_usd=total_cost_usd
+            )
+        
+        except Exception as e:
+            logger.error(f"Error getting Jupiter route: {e}")
+            return None
