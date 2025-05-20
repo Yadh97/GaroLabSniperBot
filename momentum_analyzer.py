@@ -365,17 +365,16 @@ class MomentumAnalyzer:
         except Exception as e:
             logger.error(f"Error calculating social momentum: {e}")
             return 0.0
-    
     async def _calculate_holder_distribution_score(self, df: pd.DataFrame) -> float:
-    """
-    Calcule un score basé sur la distribution des détenteurs:
-    - Nombre de détenteurs
-    - Concentration des détenteurs principaux
-    - Évolution du nombre de détenteurs
-    
-    Returns:
-        Score de distribution des détenteurs (0.0 à 1.0)
-    """
+        """
+        Calcule un score basé sur la distribution des détenteurs:
+        - Nombre de détenteurs
+        - Concentration des détenteurs principaux
+        - Évolution du nombre de détenteurs
+        
+        Returns:
+            Score de distribution des détenteurs (0.0 à 1.0)
+        """
         try:
             # Vérifier que les colonnes nécessaires existent
             if "holders_count" not in df.columns and "top_holder_percentage" not in df.columns:
@@ -427,4 +426,4 @@ class MomentumAnalyzer:
         
         except Exception as e:
             self.logger.error(f"Error calculating holder distribution score: {e}")
-            return 0.5  # Score neutre en cas d'erreur
+            return 0.5  # Score neutre en cas d'erreur  
