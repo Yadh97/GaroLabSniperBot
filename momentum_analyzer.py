@@ -404,5 +404,4 @@ class MomentumAnalyzer:
                 elif top_holder_pct > 10:
                     concentration_score = 0.7
                 else:
-           
-(Content truncated due to size limit. Use line ranges to read in chunks)
+                    concentration_score = 0.9 
