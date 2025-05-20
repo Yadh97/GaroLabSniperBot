@@ -302,19 +302,8 @@ class TradingStrategyManager:
             logger.error(f"Error executing buy for {token_info.symbol}: {e}")
             return None
     
-    async def execute_sell(self, token_address: str, percentage: float = 1.0, 
-                          slippage: float = None) -> Optional[Dict[str, Any]]:
-        """
-        Exécute une vente de token
-        
-        Args:
-            token_address: Adresse du token à vendre
-            percentage: Pourcentage de la position à vendre (1.0 = 100%)
-            slippage: Tolérance de slippage (utilise la valeur par défaut si None)
-            
-        Returns:
-            Détails de la transaction ou None en cas d'échec
-        """
+    async def execute_sell(self, token_address: str, percentage: float = 1.0, slippage: float = None) -> Optional[Dict[str, Any]]:
+
         if not self.trader:
             logger.error("No trader available to execute sell")
             return None
@@ -366,5 +355,57 @@ class TradingStrategyManager:
                 # Arrêter le moniteur de position s'il existe
                 if token_address in self.position_monitors:
                     self.position_monitors[token_address].cancel()
-                    del self.position_monitors
-(Content truncated due to size limit. Use line ranges to read in chunks)
+                    del self.position_monitors[token_address]
+                
+                logger.info(f"Sold all {position.token_symbol} for ${exit_price:.6f} "
+                           f"(P&L: {profit_loss_percentage:.2f}%)")
+            else:
+                # Vente partielle
+                sold_amount = position.token_amount * percentage
+                remaining_amount = position.token_amount - sold_amount
+                
+                # Calculer le P&L partiel
+                profit_loss_usd = (exit_price - position.entry_price) * sold_amount
+                profit_loss_percentage = ((exit_price / position.entry_price) - 1) * 100
+                
+                # Créer une position fermée pour la partie vendue
+                closed_position = TradePosition(
+                    token_address=position.token_address,
+                    token_symbol=position.token_symbol,
+                    entry_price=position.entry_price,
+                    entry_time=position.entry_time,
+                    amount_sol=position.amount_sol * percentage,
+                    token_amount=sold_amount,
+                    status="closed",
+                    exit_price=exit_price,
+                    exit_time=exit_time,
+                    profit_loss_usd=profit_loss_usd,
+                    profit_loss_percentage=profit_loss_percentage,
+                    strategy_name=position.strategy_name,
+                    trade_id=position.trade_id,
+                    notes=f"Partial sell ({percentage*100:.0f}%)"
+                )
+                
+                self.closed_positions.append(closed_position)
+                
+                # Mettre à jour la position active
+                position.amount_sol = position.amount_sol * (1 - percentage)
+                position.token_amount = remaining_amount
+                
+                logger.info(f"Sold {percentage*100:.0f}% of {position.token_symbol} "
+                           f"for ${exit_price:.6f} (P&L: {profit_loss_percentage:.2f}%)")
+            
+            # Sauvegarder les positions
+            self._save_positions()
+            
+            return {
+                "success": True,
+                "transaction_id": result.get("transaction_id", ""),
+                "price": exit_price,
+                "profit_loss_percentage": profit_loss_percentage,
+                "profit_loss_usd": profit_loss_usd
+            }
+        
+        except Exception as e:
+            logger.error(f"Error executing sell for {position.token_symbol}: {e}")
+            return None
