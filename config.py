@@ -11,60 +11,34 @@ logger = logging.getLogger("config")
 
 # Configuration par défaut
 DEFAULT_CONFIG = {
-    # Mode de fonctionnement
     "SIMULATION_MODE": True,
-    
-    # Paramètres de scan
+
+    # Scan & Timing
     "SCAN_INTERVAL_SECONDS": 10,
-    "MAX_TOKENS_PER_SCAN": 50,
-    
-    # Paramètres de trading
+    "PERFORMANCE_REPORT_INTERVAL_HOURS": 6,
+
+    # Trading
     "BASE_POSITION_SIZE_SOL": 0.5,
     "MAX_POSITION_SIZE_SOL": 2.0,
     "MAX_CONCURRENT_POSITIONS": 5,
     "DEFAULT_SLIPPAGE_TOLERANCE": 0.03,
-    
-    # Paramètres de momentum
-    "MIN_MOMENTUM_SCORE": 0.7,
-    
-    # Paramètres de filtrage
-    "MIN_LIQUIDITY_USD": 10000,
-    "MAX_MARKET_CAP_USD": 10000000,
-    "MIN_HOLDER_COUNT": 50,
-    "MAX_TOP_HOLDER_PERCENTAGE": 0.5,
-    
-    # Paramètres de routage
-    "MAX_ROUTES_TO_CHECK": 3,
-    "ENABLE_JUPITER": True,
-    "ENABLE_RAYDIUM": True,
-    "ENABLE_ORCA": True,
-    "JUPITER_WEIGHT": 1.0,
-    "RAYDIUM_WEIGHT": 0.9,
-    "ORCA_WEIGHT": 0.85,
-    
-    # Paramètres de notification
+
+    # Filtering
+    "MIN_LIQUIDITY_USD": 500,
+    "MAX_FDV_USD": 10_000_000,
+    "TOP_HOLDER_MAX_PERCENT": 15,
+
+    # Notifier
     "ENABLE_TELEGRAM": False,
     "TELEGRAM_BOT_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
-    
-    # Paramètres de rapport
-    "PERFORMANCE_REPORT_INTERVAL_HOURS": 6,
-    
-    # Fichiers de données
+
+    # System
     "TOKEN_CACHE_FILE": "token_cache.json",
-    "POSITIONS_FILE": "trading_positions.json",
-    
-    # Clés API
-    "BIRDEYE_API_KEY": "",
-    "SOLSCAN_API_KEY": "",
-    "JUPITER_API_KEY": "",
-    
-    # Paramètres RPC
-    "RPC_URL": "https://api.mainnet-beta.solana.com",
+
+    # RPC + Wallet
     "RPC_HTTP_ENDPOINT": "https://mainnet.helius-rpc.com/?api-key=d96ee388-2b3f-405c-9865-0221d03c20c1",
-    "PRIVATE_RPC_URL": "",
-    
-    # Paramètres du wallet
+    "COMMITMENT": "confirmed",
     "WALLET_PRIVATE_KEY": "",
     "WALLET_ADDRESS": ""
 }
