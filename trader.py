@@ -10,7 +10,7 @@ from base64 import b64decode
 import config
 
 # Initialize HTTP RPC client
-rpc_client = Client(config.RPC_HTTP_ENDPOINT)
+rpc_client = Client(config.get("RPC_URL"))
 
 # Wallet state
 USER_KEYPAIR = None
