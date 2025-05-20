@@ -367,15 +367,15 @@ class MomentumAnalyzer:
             return 0.0
     
     async def _calculate_holder_distribution_score(self, df: pd.DataFrame) -> float:
-        """
-        Calcule un score basé sur la distribution des détenteurs:
-        - Nombre de détenteurs
-        - Concentration des détenteurs principaux
-        - Évolution du nombre de détenteurs
-        
-        Returns:
-            Score de distribution des détenteurs (0.0 à 1.0)
-        """
+    """
+    Calcule un score basé sur la distribution des détenteurs:
+    - Nombre de détenteurs
+    - Concentration des détenteurs principaux
+    - Évolution du nombre de détenteurs
+    
+    Returns:
+        Score de distribution des détenteurs (0.0 à 1.0)
+    """
         try:
             # Vérifier que les colonnes nécessaires existent
             if "holders_count" not in df.columns and "top_holder_percentage" not in df.columns:
@@ -404,4 +404,27 @@ class MomentumAnalyzer:
                 elif top_holder_pct > 10:
                     concentration_score = 0.7
                 else:
-                    concentration_score = 0.9 
+                    concentration_score = 0.9
+            
+            # Score basé sur l'évolution du nombre de détenteurs
+            growth_score = 0.5  # Valeur par défaut
+            if len(df) > 1 and "holders_count" in df.columns:
+                # Calculer le taux de croissance des détenteurs
+                first_holders = df.iloc[0].get("holders_count", 0)
+                if first_holders > 0:
+                    growth_rate = (holders_count - first_holders) / first_holders
+                    # Normaliser le taux de croissance
+                    growth_score = min(1.0, max(0.0, 0.5 + 0.5 * np.tanh(growth_rate * 5)))
+            
+            # Combiner les scores avec des poids
+            final_score = (
+                0.3 * holders_score +
+                0.5 * concentration_score +
+                0.2 * growth_score
+            )
+            
+            return final_score
+        
+        except Exception as e:
+            self.logger.error(f"Error calculating holder distribution score: {e}")
+            return 0.5  # Score neutre en cas d'erreur
