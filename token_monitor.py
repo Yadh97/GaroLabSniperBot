@@ -7,9 +7,10 @@ from token_cache import TokenCache
 from filters import TokenFilter
 from trader import Trader
 from telegram_alert import TelegramNotifier
-import config
+from config import load_config
 
 logger = logging.getLogger("TokenMonitor")
+config = load_config()
 
 
 def normalize_token_event(event: dict) -> dict:
@@ -18,12 +19,14 @@ def normalize_token_event(event: dict) -> dict:
     expected by filters, trader, and alert modules.
     """
     try:
+        sol_price = config.get("SOL_PRICE_USD", 150)  # fallback if missing
+
         return {
             "address": event.get("mint"),
             "symbol": event.get("symbol", "???"),
             "name": event.get("name", "Unknown"),
-            "liquidity_usd": float(event.get("solAmount", 0)) * config.SOL_PRICE_USD,
-            "fdv": float(event.get("marketCapSol", 0)) * config.SOL_PRICE_USD,
+            "liquidity_usd": float(event.get("solAmount", 0)) * sol_price,
+            "fdv": float(event.get("marketCapSol", 0)) * sol_price,
             "price_usd": float(event.get("price", 0)),
             "pair_id": event.get("pair_id", ""),
             "source": "pumpfun"
