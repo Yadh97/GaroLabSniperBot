@@ -4,6 +4,7 @@ import threading
 import time
 import logging
 from queue import Queue
+import asyncio
 
 from config import load_config
 from websocket_listener import WebSocketListener
@@ -75,9 +76,9 @@ def main():
         token_filter=token_filter,
         trader=trader,
         notifier=telegram_notifier,
-        config=config,
-        tracker=tracker
+        config=config
     )
+    monitor.tracker = tracker  # Inject tracker explicitly
     monitor_thread = threading.Thread(target=monitor.run, daemon=True)
     monitor_thread.start()
 
