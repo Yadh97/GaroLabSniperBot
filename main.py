@@ -14,6 +14,7 @@ from simulated_trader import SimulatedTrader
 from telegram_alert import TelegramNotifier
 from token_cache import TokenCache
 from performance_reporter import start_reporter_background_thread
+from position_tracker import start_position_tracker
 
 # Setup logging
 logging.basicConfig(
@@ -53,6 +54,9 @@ def main():
     else:
         logger.info("💰 Running in REAL TRADING mode")
         trader = Trader(config)
+
+    # Start position tracker (real-time PnL + auto-sell logic)
+    start_position_tracker(trader=trader, config=config, notifier=telegram_notifier)
 
     # WebSocket callback: place token into queue
     def handle_new_token(token_event: dict):
