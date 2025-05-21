@@ -12,7 +12,7 @@ logger = logging.getLogger("PerformanceReporter")
 class PerformanceReporter:
     def __init__(self, config, notifier: TelegramNotifier = None):
         self.config = config
-        self.interval = 1800  # 30 minutes
+        self.interval = 60  # 30 minutes
         self.trader = SimulatedTrader(config_data=config, notifier=notifier)
         self.notifier = notifier
 
