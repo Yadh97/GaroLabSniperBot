@@ -7,8 +7,31 @@ from token_cache import TokenCache
 from filters import TokenFilter
 from trader import Trader
 from telegram_alert import TelegramNotifier
+import config
 
 logger = logging.getLogger("TokenMonitor")
+
+
+def normalize_token_event(event: dict) -> dict:
+    """
+    Converts a raw WebSocket or cached token dict into normalized structure
+    expected by filters, trader, and alert modules.
+    """
+    try:
+        return {
+            "address": event.get("mint"),
+            "symbol": event.get("symbol", "???"),
+            "name": event.get("name", "Unknown"),
+            "liquidity_usd": float(event.get("solAmount", 0)) * config.SOL_PRICE_USD,
+            "fdv": float(event.get("marketCapSol", 0)) * config.SOL_PRICE_USD,
+            "price_usd": float(event.get("price", 0)),
+            "pair_id": event.get("pair_id", ""),
+            "source": "pumpfun"
+        }
+    except Exception as e:
+        logger.error(f"[Normalize Error] Failed to normalize token event: {e}")
+        return {}
+
 
 class TokenMonitor:
     def __init__(self, event_queue: Queue, token_cache: TokenCache,
@@ -37,39 +60,41 @@ class TokenMonitor:
 
     def consume_queue(self):
         while not self.queue.empty():
-            token = self.queue.get()
-            address = token.get("mint")
+            raw_event = self.queue.get()
+            normalized = normalize_token_event(raw_event)
+            address = normalized.get("address")
             if not address:
                 continue
-            self.cache.add_token_if_new(address, token)
+            self.cache.add_token_if_new(address, raw_event)
             if not self.cache.should_process(address):
                 continue
-            if self.filter.apply_filters(token):
-                logger.info(f"[✅] {token.get('symbol', '?')} passed filters.")
+            if self.filter.apply_filters(normalized):
+                logger.info(f"[✅] {normalized['symbol']} passed filters.")
                 self.cache.mark_processed(address)
                 if self.notifier:
-                    self.notifier.send_token_alert(token)
+                    self.notifier.send_token_alert(normalized)
                 if self.auto_buy:
-                    self.trader.buy_token(token)
+                    self.trader.buy_token(normalized)
             else:
-                logger.info(f"[❌] {token.get('symbol', '?')} did not pass filters.")
+                logger.info(f"[❌] {normalized['symbol']} did not pass filters.")
                 self.cache.mark_filtered(address)
 
     def recheck_cached_tokens(self):
         to_check = self.cache.get_due_for_check(self.recheck_interval)
         logger.info(f"[RECHECK] {len(to_check)} tokens due for recheck.")
-        for token in to_check:
-            address = token.get("address")
-            event_data = token.get("data")
-            if not address or not event_data:
+        for entry in to_check:
+            address = entry.get("address")
+            raw_data = entry.get("data")
+            if not address or not raw_data:
                 continue
-            if self.filter.apply_filters(event_data):
-                logger.info(f"[RECHECK ✅] {event_data.get('symbol', '?')} passed filters.")
+            normalized = normalize_token_event(raw_data)
+            if self.filter.apply_filters(normalized):
+                logger.info(f"[RECHECK ✅] {normalized['symbol']} passed filters.")
                 self.cache.mark_processed(address)
                 if self.notifier:
-                    self.notifier.send_token_alert(event_data)
+                    self.notifier.send_token_alert(normalized)
                 if self.auto_buy:
-                    self.trader.buy_token(event_data)
+                    self.trader.buy_token(normalized)
             else:
-                logger.info(f"[RECHECK ❌] {event_data.get('symbol', '?')} still invalid.")
+                logger.info(f"[RECHECK ❌] {normalized['symbol']} still invalid.")
                 self.cache.mark_filtered(address)
