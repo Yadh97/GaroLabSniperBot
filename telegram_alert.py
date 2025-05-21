@@ -4,55 +4,59 @@ import os
 import requests
 import config
 
-def send_token_alert(token):
-    """
-    Sends a formatted alert to a Telegram bot channel or user.
-    Compatible with TokenObj structure used in the sniper bot.
-    """
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or config.TELEGRAM_BOT_TOKEN
-    chat_id = os.getenv("TELEGRAM_CHAT_ID") or config.TELEGRAM_CHAT_ID
+class TelegramNotifier:
+    def __init__(self, bot_token: str = None, chat_id: str = None):
+        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN") or config.load_config().get("TELEGRAM_BOT_TOKEN", "")
+        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID") or config.load_config().get("TELEGRAM_CHAT_ID", "")
+        
+        if not self.bot_token or not self.chat_id:
+            print("[ERROR] Telegram credentials missing.")
 
-    if not bot_token or not chat_id:
-        print("[ERROR] Telegram credentials missing.")
-        return
+    def send_token_alert(self, token):
+        """
+        Sends a formatted alert to a Telegram channel/user.
+        Compatible with TokenInfo-style dict or object.
+        """
+        if not self.bot_token or not self.chat_id:
+            return
 
-    try:
-        name = token.name or "Unnamed"
-        symbol = token.symbol or "?"
-        address = token.address
-        liquidity = float(token.liquidity_usd or 0)
-        mcap = float(token.fdv or 0)
-        pair = token.pair_id or "unknown"
-        chart_link = f"https://dexscreener.com/solana/{pair}"
-        solscan_link = f"https://solscan.io/token/{address}"
+        try:
+            name = getattr(token, "name", token.get("name", "Unnamed"))
+            symbol = getattr(token, "symbol", token.get("symbol", "?"))
+            address = getattr(token, "address", token.get("mint") or token.get("address"))
+            liquidity = float(getattr(token, "liquidity_usd", token.get("liquidity_usd", 0)))
+            mcap = float(getattr(token, "fdv", token.get("fdv", 0)))
+            source = getattr(token, "source", token.get("source", "unknown"))
+            pair = getattr(token, "pair_id", token.get("pair_id", "unknown"))
+            chart_link = f"https://dexscreener.com/solana/{pair}"
+            solscan_link = f"https://solscan.io/token/{address}"
 
-        # Telegram Markdown message
-        msg = f"""
+            msg = f"""
 🚀 *New Token Detected!*
 
 *Name:* {name}
 *Symbol:* `{symbol}`
 *Liquidity:* ${liquidity:,.0f}
 *Market Cap:* ${mcap:,.0f}
-*Source:* `{token.source or "unknown"}`
+*Source:* `{source}`
 
 📊 [View Chart]({chart_link})
 🔍 [View on Solscan]({solscan_link})
-        """.strip()
+            """.strip()
 
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": msg,
-            "parse_mode": "Markdown",
-            "disable_web_page_preview": False
-        }
+            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            payload = {
+                "chat_id": self.chat_id,
+                "text": msg,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": False
+            }
 
-        response = requests.post(url, data=payload)
-        if response.status_code != 200:
-            print(f"[ERROR] Telegram alert failed: {response.status_code} - {response.text}")
-        else:
-            print(f"[✅] Alert sent for {symbol} ({address})")
+            response = requests.post(url, data=payload)
+            if response.status_code != 200:
+                print(f"[ERROR] Telegram alert failed: {response.status_code} - {response.text}")
+            else:
+                print(f"[✅] Alert sent for {symbol} ({address})")
 
-    except Exception as e:
-        print(f"[ERROR] Telegram alert exception: {e}")
+        except Exception as e:
+            print(f"[ERROR] Telegram alert exception: {e}")
