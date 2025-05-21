@@ -4,9 +4,7 @@ import time
 import json
 from typing import Dict, List, Optional, Any
 from solana.rpc.async_api import AsyncClient
-from solana.publickey import PublicKey
-
-# Importer la configuration
+from solders.pubkey import Pubkey
 from config import load_config
 
 # Configuration du logging
