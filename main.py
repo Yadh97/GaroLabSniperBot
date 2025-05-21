@@ -8,11 +8,13 @@ from queue import Queue
 from config import load_config
 from websocket_listener import WebSocketListener
 from token_monitor import TokenMonitor
-from token_cache import TokenCache
 from filters import TokenFilter
 from trader import Trader
 from simulated_trader import SimulatedTrader
 from telegram_alert import TelegramNotifier
+from token_cache import TokenCache
+
+token_cache = TokenCache()
 
 # Setup logging
 logging.basicConfig(
