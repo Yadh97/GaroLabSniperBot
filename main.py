@@ -25,19 +25,19 @@ logger = logging.getLogger("Main")
 def main():
     logger.info("🚀 Starting GaroLabSniperBot...")
 
-    # Load config
+    # Load runtime config
     config = load_config()
 
-    # Shared event queue
+    # Initialize event queue
     event_queue = Queue()
 
-    # Persistent token cache
+    # Create token cache
     token_cache = TokenCache()
 
-    # Filters
+    # Token filtering logic
     token_filter = TokenFilter()
 
-    # Telegram Notifier
+    # Telegram Notifier (optional)
     telegram_notifier = None
     if config.get("ENABLE_TELEGRAM") and config.get("TELEGRAM_BOT_TOKEN") and config.get("TELEGRAM_CHAT_ID"):
         telegram_notifier = TelegramNotifier(
@@ -45,7 +45,7 @@ def main():
             config["TELEGRAM_CHAT_ID"]
         )
 
-    # Trader
+    # Trader instance (simulated or real)
     if config.get("SIMULATION_MODE", True):
         logger.info("🧪 Running in SIMULATION mode")
         trader = SimulatedTrader(config_data=config, notifier=telegram_notifier)
@@ -53,12 +53,16 @@ def main():
         logger.info("💰 Running in REAL TRADING mode")
         trader = Trader(config)
 
-    # WebSocket listener
-    listener = WebSocketListener(event_queue=event_queue)
+    # WebSocket callback: place token into queue
+    def handle_new_token(token_event: dict):
+        event_queue.put(token_event)
+
+    # WebSocket listener (Pump.fun)
+    listener = WebSocketListener(on_token_callback=handle_new_token)
     listener_thread = threading.Thread(target=listener.run, daemon=True)
     listener_thread.start()
 
-    # Token monitor
+    # Token monitor (filtering, buy logic, recheck, reporting)
     monitor = TokenMonitor(
         event_queue=event_queue,
         token_cache=token_cache,
@@ -70,7 +74,7 @@ def main():
     monitor_thread = threading.Thread(target=monitor.run, daemon=True)
     monitor_thread.start()
 
-    # Performance report loop
+    # Performance & health loop
     last_report_time = time.time()
     report_interval = config.get("PERFORMANCE_REPORT_INTERVAL_HOURS", 6) * 3600
     scan_interval = config.get("SCAN_INTERVAL_SECONDS", 10)
@@ -84,7 +88,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("❌ Bot stopped by user.")
     finally:
-        logger.info("🛑 Saving token cache...")
+        logger.info("🛑 Saving token cache before shutdown...")
         token_cache.save()
 
 if __name__ == "__main__":
