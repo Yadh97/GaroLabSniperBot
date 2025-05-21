@@ -16,7 +16,7 @@ class PerformanceReporter:
         self.trader = SimulatedTrader(config_data=config, notifier=notifier)
         self.notifier = notifier
 
-    def format_report(self, summary):
+    def format_report(self, summary: dict) -> str:
         report = f"""
 📊 *Performance Report (last 30 min)*
 
@@ -39,24 +39,25 @@ class PerformanceReporter:
         return report.strip()
 
     def send_report(self):
-        summary = self.trader.get_position_performance_summary()
-        message = self.format_report(summary)
+        try:
+            summary = self.trader.get_position_performance_summary()
+            message = self.format_report(summary)
 
-        if self.notifier:
-            self.notifier.send_message(message)
-        else:
-            logger.info("\n" + message)
+            if self.notifier:
+                self.notifier.send_markdown(message)  # Changed here
+                logger.info("[PERF REPORT] Report sent to Telegram.")
+            else:
+                logger.info("[PERF REPORT] \n" + message)
+        except Exception as e:
+            logger.error(f"[Reporter Error] Failed to send report: {e}")
 
     def run_loop(self):
         while True:
-            try:
-                self.send_report()
-            except Exception as e:
-                logger.error(f"[Reporter Error] {e}")
+            self.send_report()
             time.sleep(self.interval)
 
 def start_reporter_background_thread(config, notifier):
     reporter = PerformanceReporter(config, notifier)
     t = threading.Thread(target=reporter.run_loop, daemon=True)
     t.start()
-    logger.info("Performance reporter started.")
+    logger.info("✅ Performance reporter started.")
