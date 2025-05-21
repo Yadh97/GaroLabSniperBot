@@ -12,15 +12,21 @@ config = load_config()
 rpc_client = Client(config["RPC_HTTP_ENDPOINT"], commitment=config.get("COMMITMENT", "confirmed"))
 
 def basic_filter(token) -> bool:
-    if token.liquidity_usd < config["MIN_LIQUIDITY_USD"]:
-        print(f"[FILTER ❌] {token.symbol}: Liquidity too low (${token.liquidity_usd:,.2f})")
+    """
+    Basic filter based on liquidity and FDV range.
+    """
+    if token["liquidity_usd"] < config["MIN_LIQUIDITY_USD"]:
+        print(f"[FILTER ❌] {token.get('symbol', '?')}: Liquidity too low (${token['liquidity_usd']:,.2f})")
         return False
-    if token.fdv <= 0 or token.fdv > config["MAX_FDV_USD"]:
-        print(f"[FILTER ❌] {token.symbol}: FDV (${token.fdv:,.2f}) out of range.")
+    if token["fdv"] <= 0 or token["fdv"] > config["MAX_FDV_USD"]:
+        print(f"[FILTER ❌] {token.get('symbol', '?')}: FDV (${token['fdv']:,.2f}) out of range.")
         return False
     return True
 
 def rugcheck_filter(token_address: str) -> bool:
+    """
+    RugCheck filter: flags tokens with authority risks or blacklist status.
+    """
     url = f"{config.get('RUGCHECK_BASE_URL', 'https://api.rugcheck.xyz/tokens')}/{token_address}/report"
     try:
         resp = requests.get(url, timeout=10)
@@ -52,6 +58,9 @@ def rugcheck_filter(token_address: str) -> bool:
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
+    """
+    Filters tokens with top holders controlling too much of supply.
+    """
     try:
         pubkey = Pubkey.from_string(token_address)
         supply_resp = rpc_client.get_token_supply(pubkey)
@@ -77,3 +86,15 @@ def holders_distribution_filter(token_address: str) -> bool:
         return False
 
     return True
+
+class TokenFilter:
+    """
+    Wrapper to apply all filters in sequence for token screening.
+    """
+    def apply_filters(self, token: dict) -> bool:
+        token_address = token.get("mint")
+        return (
+            basic_filter(token) and
+            rugcheck_filter(token_address) and
+            holders_distribution_filter(token_address)
+        )
