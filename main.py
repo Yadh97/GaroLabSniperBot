@@ -48,7 +48,7 @@ def main():
     # Trader
     if config.get("SIMULATION_MODE", True):
         logger.info("🧪 Running in SIMULATION mode")
-        trader = SimulatedTrader()  # or SimulatedTrader(config) if needed
+        trader = SimulatedTrader(config, notifier=telegram_notifier)
     else:
         logger.info("💰 Running in REAL TRADING mode")
         trader = Trader(config)
