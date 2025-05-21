@@ -19,6 +19,7 @@ class SimulatedTrader:
         self.positions_file = self.config.get("POSITIONS_FILE", "simulated_positions.json")
         self.positions: Dict[str, Dict[str, Any]] = {}
         self.load_positions()
+        self.tracker = None  # Will be injected later
 
     def load_positions(self):
         try:
@@ -71,6 +72,10 @@ class SimulatedTrader:
 🧪 Mode: Simulation
             """.strip()
             self.notifier.send_message(msg)
+
+        # Inject live tracking into tracker if available
+        if self.tracker:
+            self.tracker.track(address, buy_price, token_amount, symbol)
 
         return {
             "success": True,
