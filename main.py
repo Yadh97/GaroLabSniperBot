@@ -65,6 +65,7 @@ def main():
         token_filter=token_filter,
         trader=trader,
         notifier=telegram_notifier,
+        config=config  # <-- pass config here
     )
     monitor_thread = threading.Thread(target=monitor.run, daemon=True)
     monitor_thread.start()
