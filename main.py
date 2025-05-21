@@ -13,6 +13,7 @@ from trader import Trader
 from simulated_trader import SimulatedTrader
 from telegram_alert import TelegramNotifier
 from token_cache import TokenCache
+from performance_reporter import start_reporter_background_thread
 
 # Setup logging
 logging.basicConfig(
@@ -74,7 +75,10 @@ def main():
     monitor_thread = threading.Thread(target=monitor.run, daemon=True)
     monitor_thread.start()
 
-    # Performance & health loop
+    # Auto performance reports every 30 minutes
+    start_reporter_background_thread(config=config, notifier=telegram_notifier)
+
+    # Health loop (optional fallback report every N hours)
     last_report_time = time.time()
     report_interval = config.get("PERFORMANCE_REPORT_INTERVAL_HOURS", 6) * 3600
     scan_interval = config.get("SCAN_INTERVAL_SECONDS", 10)
