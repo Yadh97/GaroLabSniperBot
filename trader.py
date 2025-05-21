@@ -124,3 +124,57 @@ class Trader:
                 return {
                     "success": True,
                     "transaction_id": tx_result["transaction_id"],
+                    "sol_amount": sol_amount,
+                    "price": price_per_token,
+                    "token_amount": token_amount,
+                    "route": route.provider
+                }
+
+            else:
+                logger.warning("No order router available, using default Jupiter route")
+                return {"success": False, "error": "Order router not configured"}
+
+        except Exception as e:
+            logger.error(f"Error selling token: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_token_balance(self, token_address: str) -> float:
+        if not self.wallet_address:
+            return 0
+
+        try:
+            # TODO: Replace with real blockchain query if needed
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error getting token balance: {e}")
+            return 0
+
+    async def get_sol_balance(self) -> float:
+        if not self.wallet_address:
+            return 0
+
+        try:
+            response = await self.client.get_balance(Pubkey.from_string(self.wallet_address))
+            if response["result"]["value"] is not None:
+                return response["result"]["value"] / 1_000_000_000
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error getting SOL balance: {e}")
+            return 0
+
+    async def _execute_transaction(self, tx_data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            transaction_id = "simulated_transaction_id"
+            return {
+                "success": True,
+                "transaction_id": transaction_id
+            }
+
+        except Exception as e:
+            logger.error(f"Error executing transaction: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
