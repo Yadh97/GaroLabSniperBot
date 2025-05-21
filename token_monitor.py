@@ -3,7 +3,6 @@
 import time
 import logging
 from queue import Queue
-from config import AUTO_BUY_ENABLED, SCAN_INTERVAL_SECONDS, RECHECK_INTERVAL_SECONDS
 from token_cache import TokenCache
 from filters import TokenFilter
 from trader import Trader
@@ -14,19 +13,24 @@ logger = logging.getLogger("TokenMonitor")
 class TokenMonitor:
     def __init__(self, event_queue: Queue, token_cache: TokenCache,
                  token_filter: TokenFilter, trader: Trader,
-                 notifier: TelegramNotifier = None):
+                 notifier: TelegramNotifier = None,
+                 config: dict = None):
         self.queue = event_queue
         self.cache = token_cache
         self.filter = token_filter
         self.trader = trader
         self.notifier = notifier
+        self.config = config or {}
+        self.scan_interval = self.config.get("SCAN_INTERVAL_SECONDS", 10)
+        self.recheck_interval = self.config.get("RECHECK_INTERVAL_SECONDS", 300)
+        self.auto_buy = self.config.get("AUTO_BUY_ENABLED", False)
 
     def run(self):
         while True:
             try:
                 self.consume_queue()
                 self.recheck_cached_tokens()
-                time.sleep(SCAN_INTERVAL_SECONDS)
+                time.sleep(self.scan_interval)
             except Exception as e:
                 logger.error(f"[Monitor Error] {e}")
                 time.sleep(2)
@@ -42,14 +46,14 @@ class TokenMonitor:
                 self.cache.mark_processed(address)
                 if self.notifier:
                     self.notifier.send_token_alert(token)
-                if AUTO_BUY_ENABLED:
+                if self.auto_buy:
                     self.trader.buy_token(token)
             else:
                 logger.info(f"[❌] {token.get('symbol', '?')} did not pass filters.")
                 self.cache.mark_filtered(address)
 
     def recheck_cached_tokens(self):
-        to_check = self.cache.get_tokens_for_recheck(RECHECK_INTERVAL_SECONDS)
+        to_check = self.cache.get_tokens_for_recheck(self.recheck_interval)
         logger.info(f"[RECHECK] {len(to_check)} tokens due for recheck.")
         for token in to_check:
             address = token.get("mint")
@@ -58,7 +62,7 @@ class TokenMonitor:
                 self.cache.mark_processed(address)
                 if self.notifier:
                     self.notifier.send_token_alert(token)
-                if AUTO_BUY_ENABLED:
+                if self.auto_buy:
                     self.trader.buy_token(token)
             else:
                 logger.info(f"[RECHECK ❌] {token.get('symbol', '?')} still invalid.")
