@@ -3,120 +3,88 @@
 import json
 import os
 import time
-from typing import Dict
+from typing import Dict, List
 
-# Constants
-CACHE_FILE = "token_cache.json"
-MAX_LIFETIME_SECONDS = 3 * 3600  # 3 hours
-EXTEND_LIFETIME_SECONDS = 3600   # +1 hour if promising
-CHECK_INTERVAL_SECONDS = 300     # every 5 min
+class TokenCache:
+    def __init__(self, cache_file: str = "token_cache.json"):
+        self.cache_file = cache_file
+        self.max_lifetime = 3 * 3600  # 3 hours
+        self.extend_lifetime = 3600   # +1 hour if promising
+        self.check_interval = 300     # 5 min
+        self.cache: Dict[str, dict] = {}
+        self.load()
 
-# In-memory token cache
-token_cache: Dict[str, dict] = {}
+    def load(self):
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    self.cache = json.load(f)
+                    print(f"[CACHE] Loaded {len(self.cache)} tokens from disk.")
+            except Exception as e:
+                print(f"[ERROR] Failed to load token cache: {e}")
+                self.cache = {}
 
-
-def load_cache():
-    """
-    Load cache from disk into memory.
-    """
-    global token_cache
-    if os.path.exists(CACHE_FILE):
+    def save(self):
         try:
-            with open(CACHE_FILE, 'r') as f:
-                token_cache = json.load(f)
-                print(f"[CACHE] Loaded {len(token_cache)} tokens from disk.")
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.cache, f)
         except Exception as e:
-            print(f"[ERROR] Failed to load token cache: {e}")
-            token_cache = {}
-    else:
-        token_cache = {}
+            print(f"[ERROR] Failed to save token cache: {e}")
 
+    def add_token_if_new(self, mint: str, token_data: dict):
+        now = int(time.time())
+        if mint not in self.cache:
+            print(f"[CACHE] Adding new token {mint} to cache.")
+            self.cache[mint] = {
+                "data": token_data,
+                "created": now,
+                "last_seen": now,
+                "last_checked": 0,
+                "expires_at": now + self.max_lifetime
+            }
+            self.save()
+        else:
+            self.cache[mint]["last_seen"] = now
+            self.save()
 
-def save_cache():
-    """
-    Save current token cache to disk.
-    """
-    try:
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(token_cache, f)
-    except Exception as e:
-        print(f"[ERROR] Failed to save token cache: {e}")
+    def update_check(self, mint: str, signal_strength: int = 0):
+        if mint not in self.cache:
+            return
+        self.cache[mint]["last_checked"] = int(time.time())
+        if signal_strength > 0:
+            self.cache[mint]["expires_at"] = int(time.time()) + self.extend_lifetime
+            print(f"[CACHE] Token {mint} extended due to positive signal.")
+        self.save()
 
+    def get_due_for_check(self, interval: int = None) -> List[dict]:
+        interval = interval or self.check_interval
+        now = int(time.time())
+        return [
+            {"address": mint, "data": token["data"]}
+            for mint, token in self.cache.items()
+            if now - token.get("last_checked", 0) >= interval
+        ]
 
-def add_token_if_new(mint: str, token_data: dict):
-    """
-    Add token to cache only if new. Update last_seen if already present.
-    """
-    now = int(time.time())
-    if mint not in token_cache:
-        print(f"[CACHE] Adding new token {mint} to cache.")
-        token_cache[mint] = {
-            "data": token_data,
-            "created": now,
-            "last_seen": now,
-            "last_checked": 0,
-            "expires_at": now + MAX_LIFETIME_SECONDS
-        }
-        save_cache()
-    else:
-        token_cache[mint]["last_seen"] = now
-        save_cache()
+    def get_ready_for_purge(self) -> List[str]:
+        now = int(time.time())
+        return [mint for mint, token in self.cache.items() if now >= token.get("expires_at", 0)]
 
+    def remove_token(self, mint: str):
+        if mint in self.cache:
+            del self.cache[mint]
+            self.save()
 
-def update_check(mint: str, signal_strength: int = 0):
-    """
-    Mark token as rechecked. Extend lifetime if signal is positive.
-    """
-    if mint not in token_cache:
-        return
-    token_cache[mint]["last_checked"] = int(time.time())
-    if signal_strength > 0:
-        token_cache[mint]["expires_at"] = int(time.time()) + EXTEND_LIFETIME_SECONDS
-        print(f"[CACHE] Token {mint} extended due to positive signal.")
-    save_cache()
+    def cleanup_expired_tokens(self):
+        expired = self.get_ready_for_purge()
+        for mint in expired:
+            print(f"[CACHE] Removing expired token {mint}")
+            self.remove_token(mint)
 
+    def should_process(self, mint: str) -> bool:
+        return mint not in self.cache
 
-def get_due_for_check(interval: int = CHECK_INTERVAL_SECONDS):
-    """
-    Get tokens that haven't been rechecked in the last `interval` seconds.
-    """
-    now = int(time.time())
-    return [
-        {"address": mint, "data": token["data"]}
-        for mint, token in token_cache.items()
-        if now - token.get("last_checked", 0) >= interval
-    ]
+    def mark_processed(self, mint: str):
+        self.update_check(mint, signal_strength=1)
 
-
-def get_ready_for_purge():
-    """
-    Get tokens whose lifetime has expired.
-    """
-    now = int(time.time())
-    return [mint for mint, token in token_cache.items() if now >= token.get("expires_at", 0)]
-
-
-def remove_token(mint: str):
-    """
-    Remove a token from the cache.
-    """
-    if mint in token_cache:
-        del token_cache[mint]
-        save_cache()
-
-
-def cleanup_expired_tokens():
-    """
-    Remove all tokens that have expired.
-    """
-    to_remove = get_ready_for_purge()
-    for mint in to_remove:
-        print(f"[CACHE] Removing expired token {mint}")
-        remove_token(mint)
-
-
-# Load on module import
-load_cache()
-
-
-
+    def mark_filtered(self, mint: str):
+        self.update_check(mint, signal_strength=0)
