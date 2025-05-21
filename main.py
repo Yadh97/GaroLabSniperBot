@@ -14,7 +14,7 @@ from simulated_trader import SimulatedTrader
 from telegram_alert import TelegramNotifier
 from token_cache import TokenCache
 from performance_reporter import start_reporter_background_thread
-from position_tracker import start_position_tracker
+from position_tracker import PositionTracker
 
 # Setup logging
 logging.basicConfig(
@@ -56,7 +56,8 @@ def main():
         trader = Trader(config)
 
     # Start position tracker (real-time PnL + auto-sell logic)
-    start_position_tracker(trader=trader, config=config, notifier=telegram_notifier)
+    tracker = PositionTracker(trader=trader, notifier=telegram_notifier)
+    threading.Thread(target=lambda: asyncio.run(tracker.run()), daemon=True).start()
 
     # WebSocket callback: place token into queue
     def handle_new_token(token_event: dict):
@@ -74,7 +75,8 @@ def main():
         token_filter=token_filter,
         trader=trader,
         notifier=telegram_notifier,
-        config=config
+        config=config,
+        tracker=tracker
     )
     monitor_thread = threading.Thread(target=monitor.run, daemon=True)
     monitor_thread.start()
