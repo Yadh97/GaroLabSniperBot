@@ -5,15 +5,7 @@ import time
 import logging
 from queue import Queue
 
-from config import (
-    SIMULATION_MODE,
-    TELEGRAM_ENABLED,
-    TELEGRAM_BOT_TOKEN,
-    TELEGRAM_CHAT_ID,
-    SCAN_INTERVAL_SECONDS,
-    PERFORMANCE_REPORT_INTERVAL_HOURS,
-)
-
+from config import load_config
 from websocket_listener import WebSocketListener
 from token_monitor import TokenMonitor
 from token_cache import TokenCache
@@ -33,6 +25,9 @@ logger = logging.getLogger("Main")
 def main():
     logger.info("🚀 Starting GaroLabSniperBot...")
 
+    # Load config from JSON
+    config = load_config()
+
     # Shared queue for token events
     event_queue = Queue()
 
@@ -44,11 +39,14 @@ def main():
 
     # Telegram notifier
     telegram_notifier = None
-    if TELEGRAM_ENABLED and TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        telegram_notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    if config.get("ENABLE_TELEGRAM") and config.get("TELEGRAM_BOT_TOKEN") and config.get("TELEGRAM_CHAT_ID"):
+        telegram_notifier = TelegramNotifier(
+            config["TELEGRAM_BOT_TOKEN"],
+            config["TELEGRAM_CHAT_ID"]
+        )
 
     # Trader (simulated or real)
-    if SIMULATION_MODE:
+    if config.get("SIMULATION_MODE", True):
         logger.info("🧪 Running in SIMULATION mode")
         trader = SimulatedTrader()
     else:
@@ -73,14 +71,14 @@ def main():
 
     # Main loop for performance report & health check
     last_report_time = time.time()
-    report_interval = PERFORMANCE_REPORT_INTERVAL_HOURS * 3600
+    report_interval = config.get("PERFORMANCE_REPORT_INTERVAL_HOURS", 6) * 3600
 
     try:
         while True:
             if time.time() - last_report_time > report_interval:
                 monitor.send_performance_report()
                 last_report_time = time.time()
-            time.sleep(SCAN_INTERVAL_SECONDS)
+            time.sleep(config.get("SCAN_INTERVAL_SECONDS", 10))
     except KeyboardInterrupt:
         logger.info("❌ Bot stopped by user.")
     finally:
