@@ -1,75 +1,62 @@
 # Filename: performance_reporter.py
 
-import json
-import os
 import time
-from datetime import datetime
+import threading
+import logging
+from simulated_trader import SimulatedTrader
+from telegram_alert import TelegramNotifier
+from config import load_config
 
-POSITIONS_FILE = "simulated_positions.json"
-REPORT_FILE = "performance_summary.json"
+logger = logging.getLogger("PerformanceReporter")
 
+class PerformanceReporter:
+    def __init__(self, config, notifier: TelegramNotifier = None):
+        self.config = config
+        self.interval = 1800  # 30 minutes
+        self.trader = SimulatedTrader(config_data=config, notifier=notifier)
+        self.notifier = notifier
 
-def load_positions():
-    if not os.path.exists(POSITIONS_FILE):
-        return {}
-    with open(POSITIONS_FILE, "r") as f:
-        return json.load(f)
+    def format_report(self, summary):
+        report = f"""
+📊 *Performance Report (last 30 min)*
 
+*Total Trades:* {summary['total_trades']}
+*Winning Trades:* {summary['winning_trades']}
+*Avg Profit:* {summary['avg_profit']:.2f}%
+*Avg Loss:* {summary['avg_loss']:.2f}%
+*Net PnL:* {summary['total_profit_loss']:.4f} SOL
+        """
 
-def summarize_performance(positions):
-    closed = [p for p in positions.values() if p.get("status") == "closed"]
-    open_ = [p for p in positions.values() if p.get("status") == "open"]
+        best = summary.get("best_trade")
+        if best:
+            report += f"""
+🏅 *Best Trade:* {best['symbol']}
+    Buy @ ${best['buy_price']:.6f}
+    Sell @ ${best['sell_price']:.6f}
+    PnL: {best['pnl_percent']:.2f}% | Profit: {best['profit_sol']:.4f} SOL
+            """
 
-    result = {
-        "total_trades": len(closed),
-        "open_positions": len(open_),
-        "winning_trades": 0,
-        "losing_trades": 0,
-        "avg_win_pct": 0.0,
-        "avg_loss_pct": 0.0,
-        "total_profit_sol": 0.0,
-        "best_trade": None,
-        "worst_trade": None,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }
+        return report.strip()
 
-    if not closed:
-        return result
+    def send_report(self):
+        summary = self.trader.get_position_performance_summary()
+        message = self.format_report(summary)
 
-    profits = []
-    losses = []
-
-    for trade in closed:
-        pnl = trade.get("pnl_percent", 0)
-        if pnl >= 0:
-            profits.append(pnl)
+        if self.notifier:
+            self.notifier.send_message(message)
         else:
-            losses.append(pnl)
+            logger.info("\n" + message)
 
-    result["winning_trades"] = len(profits)
-    result["losing_trades"] = len(losses)
-    result["avg_win_pct"] = round(sum(profits) / len(profits), 2) if profits else 0.0
-    result["avg_loss_pct"] = round(sum(losses) / len(losses), 2) if losses else 0.0
-    result["total_profit_sol"] = round(sum([t.get("profit_sol", 0) for t in closed]), 4)
+    def run_loop(self):
+        while True:
+            try:
+                self.send_report()
+            except Exception as e:
+                logger.error(f"[Reporter Error] {e}")
+            time.sleep(self.interval)
 
-    if closed:
-        result["best_trade"] = max(closed, key=lambda t: t.get("pnl_percent", 0))
-        result["worst_trade"] = min(closed, key=lambda t: t.get("pnl_percent", 0))
-
-    return result
-
-
-def save_summary(summary):
-    with open(REPORT_FILE, "w") as f:
-        json.dump(summary, f, indent=2)
-    print(f"[📊] Performance summary written to {REPORT_FILE}")
-
-
-def generate_report():
-    positions = load_positions()
-    summary = summarize_performance(positions)
-    save_summary(summary)
-
-
-if __name__ == "__main__":
-    generate_report()
+def start_reporter_background_thread(config, notifier):
+    reporter = PerformanceReporter(config, notifier)
+    t = threading.Thread(target=reporter.run_loop, daemon=True)
+    t.start()
+    logger.info("Performance reporter started.")
