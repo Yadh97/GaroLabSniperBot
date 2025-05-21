@@ -2,15 +2,19 @@
 
 import os
 import requests
+import logging
 import config
+
+logger = logging.getLogger("TelegramNotifier")
 
 class TelegramNotifier:
     def __init__(self, bot_token: str = None, chat_id: str = None):
-        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN") or config.load_config().get("TELEGRAM_BOT_TOKEN", "")
-        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID") or config.load_config().get("TELEGRAM_CHAT_ID", "")
-        
+        cfg = config.load_config()
+        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN") or cfg.get("TELEGRAM_BOT_TOKEN", "")
+        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID") or cfg.get("TELEGRAM_CHAT_ID", "")
+
         if not self.bot_token or not self.chat_id:
-            print("[ERROR] Telegram credentials missing.")
+            logger.error("[Telegram] Missing bot token or chat ID!")
 
     def send_token_alert(self, token):
         """
@@ -44,19 +48,31 @@ class TelegramNotifier:
 🔍 [View on Solscan]({solscan_link})
             """.strip()
 
-            url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-            payload = {
-                "chat_id": self.chat_id,
-                "text": msg,
-                "parse_mode": "Markdown",
-                "disable_web_page_preview": False
-            }
-
-            response = requests.post(url, data=payload)
-            if response.status_code != 200:
-                print(f"[ERROR] Telegram alert failed: {response.status_code} - {response.text}")
-            else:
-                print(f"[✅] Alert sent for {symbol} ({address})")
+            self.send_markdown(msg)
 
         except Exception as e:
-            print(f"[ERROR] Telegram alert exception: {e}")
+            logger.error(f"[Telegram] Failed to send token alert: {e}")
+
+    def send_markdown(self, text: str):
+        """
+        Sends a raw Markdown message.
+        """
+        if not self.bot_token or not self.chat_id:
+            return
+
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        payload = {
+            "chat_id": self.chat_id,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": False
+        }
+
+        try:
+            response = requests.post(url, data=payload)
+            if response.status_code != 200:
+                logger.error(f"[Telegram] Failed: {response.status_code} - {response.text}")
+            else:
+                logger.info("[Telegram] ✅ Message sent successfully.")
+        except Exception as e:
+            logger.error(f"[Telegram] Request exception: {e}")
