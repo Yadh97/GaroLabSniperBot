@@ -1,4 +1,4 @@
-# token_monitor.py
+# Filename: token_monitor.py
 
 import time
 import logging
@@ -39,6 +39,9 @@ class TokenMonitor:
         while not self.queue.empty():
             token = self.queue.get()
             address = token.get("mint")
+            if not address:
+                continue
+            self.cache.add_token_if_new(address, token)
             if not self.cache.should_process(address):
                 continue
             if self.filter.apply_filters(token):
@@ -53,17 +56,20 @@ class TokenMonitor:
                 self.cache.mark_filtered(address)
 
     def recheck_cached_tokens(self):
-        to_check = self.cache.get_tokens_for_recheck(self.recheck_interval)
+        to_check = self.cache.get_due_for_check(self.recheck_interval)
         logger.info(f"[RECHECK] {len(to_check)} tokens due for recheck.")
         for token in to_check:
-            address = token.get("mint")
-            if self.filter.apply_filters(token):
-                logger.info(f"[RECHECK ✅] {token.get('symbol', '?')} passed filters.")
+            address = token.get("address")
+            event_data = token.get("data")
+            if not address or not event_data:
+                continue
+            if self.filter.apply_filters(event_data):
+                logger.info(f"[RECHECK ✅] {event_data.get('symbol', '?')} passed filters.")
                 self.cache.mark_processed(address)
                 if self.notifier:
-                    self.notifier.send_token_alert(token)
+                    self.notifier.send_token_alert(event_data)
                 if self.auto_buy:
-                    self.trader.buy_token(token)
+                    self.trader.buy_token(event_data)
             else:
-                logger.info(f"[RECHECK ❌] {token.get('symbol', '?')} still invalid.")
+                logger.info(f"[RECHECK ❌] {event_data.get('symbol', '?')} still invalid.")
                 self.cache.mark_filtered(address)
