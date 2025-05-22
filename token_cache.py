@@ -40,7 +40,8 @@ class TokenCache:
                 "created": now,
                 "last_seen": now,
                 "last_checked": 0,
-                "expires_at": now + self.max_lifetime
+                "expires_at": now + self.max_lifetime,
+                "filtered": False
             }
             self.save()
         else:
@@ -87,4 +88,16 @@ class TokenCache:
         self.update_check(mint, signal_strength=1)
 
     def mark_filtered(self, mint: str):
+        if mint in self.cache:
+            self.cache[mint]["filtered"] = True
         self.update_check(mint, signal_strength=0)
+
+    def get_cache_statistics(self):
+        seen = len(self.cache)
+        tracked = sum(1 for t in self.cache.values() if t.get("last_checked", 0) > 0)
+        filtered = sum(1 for t in self.cache.values() if t.get("filtered", False))
+        return {
+            "seen": seen,
+            "tracked": tracked,
+            "filtered": filtered
+        }
