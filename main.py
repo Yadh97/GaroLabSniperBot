@@ -17,6 +17,11 @@ from token_cache import TokenCache
 from performance_reporter import start_reporter_background_thread
 from position_tracker import PositionTracker
 
+from telegram_alert import TelegramNotifier
+
+notifier = TelegramNotifier()
+notifier.send_markdown("✅ *Telegram is working!* Test from manual call.")
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -101,6 +106,6 @@ def main():
     finally:
         logger.info("🛑 Saving token cache before shutdown...")
         token_cache.save()
-
+    
 if __name__ == "__main__":
     main()
