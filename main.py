@@ -19,8 +19,6 @@ from position_tracker import PositionTracker
 
 from telegram_alert import TelegramNotifier
 
-notifier = TelegramNotifier()
-notifier.send_markdown("✅ *Telegram is working!* Test from manual call.")
 
 # Setup logging
 logging.basicConfig(
