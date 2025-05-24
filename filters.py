@@ -4,6 +4,8 @@ import requests
 from solders.pubkey import Pubkey
 from solana.rpc.api import Client
 from config import load_config
+import json
+from loguru import logger
 
 # Load config dict
 config = load_config()
@@ -22,6 +24,12 @@ class TokenFilter:
 
     def apply_filters(self, token: dict) -> bool:
         token_address = token.get("mint")
+
+        if not token_address:
+            logger.error("[FILTER ❌] Missing token mint. Full token object:")
+            logger.error(json.dumps(token, indent=2))
+            return False
+
         passed = True
 
         if not self.basic_filter(token):
@@ -44,13 +52,13 @@ class TokenFilter:
 
     def basic_filter(self, token) -> bool:
         if token["liquidity_usd"] < config["MIN_LIQUIDITY_USD"]:
-            print(f"[FILTER ❌] {token.get('symbol', '?')}: Liquidity too low (${token['liquidity_usd']:,.2f})")
+            logger.warning(f"[FILTER ❌] {token.get('symbol', '?')}: Liquidity too low (${token['liquidity_usd']:,.2f})")
             return False
         return True
 
     def fdv_filter(self, token) -> bool:
         if token["fdv"] <= 0 or token["fdv"] > config["MAX_FDV_USD"]:
-            print(f"[FILTER ❌] {token.get('symbol', '?')}: FDV (${token['fdv']:,.2f}) out of range.")
+            logger.warning(f"[FILTER ❌] {token.get('symbol', '?')}: FDV (${token['fdv']:,.2f}) out of range.")
             return False
         return True
 
@@ -66,28 +74,28 @@ def rugcheck_filter(token_address: str) -> bool:
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 404:
-            print(f"[INFO] RugCheck: Token not found: {token_address}")
+            logger.info(f"[INFO] RugCheck: Token not found: {token_address}")
             return False
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"[ERROR] RugCheck fetch failed: {e}")
+        logger.error(f"[ERROR] RugCheck fetch failed: {e}")
         return False
 
     if data.get("rugged") is True:
-        print(f"[FILTER ❌] {token_address}: Rugged token.")
+        logger.warning(f"[FILTER ❌] {token_address}: Rugged token.")
         return False
     if str(data.get("result", "")).lower() in ("danger", "blacklisted"):
-        print(f"[FILTER ❌] {token_address}: RugCheck marked dangerous/blacklisted.")
+        logger.warning(f"[FILTER ❌] {token_address}: RugCheck marked dangerous/blacklisted.")
         return False
     if data.get("mintAuthority") not in (None, "", "null"):
-        print(f"[FILTER ❌] {token_address}: Mint authority detected.")
+        logger.warning(f"[FILTER ❌] {token_address}: Mint authority detected.")
         return False
     if data.get("freezeAuthority") not in (None, "", "null"):
-        print(f"[FILTER ❌] {token_address}: Freeze authority detected.")
+        logger.warning(f"[FILTER ❌] {token_address}: Freeze authority detected.")
         return False
     if data.get("knownAccounts"):
-        print(f"[FILTER ❌] {token_address}: Involves known accounts.")
+        logger.warning(f"[FILTER ❌] {token_address}: Involves known accounts.")
         return False
 
     return True
@@ -98,7 +106,7 @@ def holders_distribution_filter(token_address: str) -> bool:
         supply_resp = rpc_client.get_token_supply(pubkey)
         total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
-            print(f"[WARN] Token {token_address} has zero supply.")
+            logger.warning(f"[WARN] Token {token_address} has zero supply.")
             return False
 
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
@@ -108,13 +116,13 @@ def holders_distribution_filter(token_address: str) -> bool:
             try:
                 holder_amount = int(holder.amount.amount)
                 if holder_amount * 100 >= total_amount * config["TOP_HOLDER_MAX_PERCENT"]:
-                    print(f"[FILTER ❌] {token_address}: Holder #{idx+1} holds too much.")
+                    logger.warning(f"[FILTER ❌] {token_address}: Holder #{idx+1} holds too much.")
                     return False
             except Exception as parse_err:
-                print(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
+                logger.warning(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
 
     except Exception as e:
-        print(f"[ERROR] Holder check failed for {token_address}: {e}")
+        logger.error(f"[ERROR] Holder check failed for {token_address}: {e}")
         return False
 
     return True
