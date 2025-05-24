@@ -11,22 +11,57 @@ config = load_config()
 # Use the configured RPC with chosen commitment level
 rpc_client = Client(config["RPC_HTTP_ENDPOINT"], commitment=config.get("COMMITMENT", "confirmed"))
 
-def basic_filter(token) -> bool:
-    """
-    Basic filter based on liquidity and FDV range.
-    """
-    if token["liquidity_usd"] < config["MIN_LIQUIDITY_USD"]:
-        print(f"[FILTER ❌] {token.get('symbol', '?')}: Liquidity too low (${token['liquidity_usd']:,.2f})")
-        return False
-    if token["fdv"] <= 0 or token["fdv"] > config["MAX_FDV_USD"]:
-        print(f"[FILTER ❌] {token.get('symbol', '?')}: FDV (${token['fdv']:,.2f}) out of range.")
-        return False
-    return True
+class TokenFilter:
+    def __init__(self):
+        self.filter_stats = {
+            "liquidity": 0,
+            "fdv": 0,
+            "rugcheck": 0,
+            "holders": 0
+        }
+
+    def apply_filters(self, token: dict) -> bool:
+        token_address = token.get("mint")
+        passed = True
+
+        if not self.basic_filter(token):
+            self.filter_stats["liquidity"] += 1
+            passed = False
+
+        if not self.fdv_filter(token):
+            self.filter_stats["fdv"] += 1
+            passed = False
+
+        if not rugcheck_filter(token_address):
+            self.filter_stats["rugcheck"] += 1
+            passed = False
+
+        if not holders_distribution_filter(token_address):
+            self.filter_stats["holders"] += 1
+            passed = False
+
+        return passed
+
+    def basic_filter(self, token) -> bool:
+        if token["liquidity_usd"] < config["MIN_LIQUIDITY_USD"]:
+            print(f"[FILTER ❌] {token.get('symbol', '?')}: Liquidity too low (${token['liquidity_usd']:,.2f})")
+            return False
+        return True
+
+    def fdv_filter(self, token) -> bool:
+        if token["fdv"] <= 0 or token["fdv"] > config["MAX_FDV_USD"]:
+            print(f"[FILTER ❌] {token.get('symbol', '?')}: FDV (${token['fdv']:,.2f}) out of range.")
+            return False
+        return True
+
+    def get_filter_statistics(self):
+        return self.filter_stats
+
+    def reset_filter_statistics(self):
+        for key in self.filter_stats:
+            self.filter_stats[key] = 0
 
 def rugcheck_filter(token_address: str) -> bool:
-    """
-    RugCheck filter: flags tokens with authority risks or blacklist status.
-    """
     url = f"{config.get('RUGCHECK_BASE_URL', 'https://api.rugcheck.xyz/tokens')}/{token_address}/report"
     try:
         resp = requests.get(url, timeout=10)
@@ -58,9 +93,6 @@ def rugcheck_filter(token_address: str) -> bool:
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
-    """
-    Filters tokens with top holders controlling too much of supply.
-    """
     try:
         pubkey = Pubkey.from_string(token_address)
         supply_resp = rpc_client.get_token_supply(pubkey)
@@ -86,15 +118,3 @@ def holders_distribution_filter(token_address: str) -> bool:
         return False
 
     return True
-
-class TokenFilter:
-    """
-    Wrapper to apply all filters in sequence for token screening.
-    """
-    def apply_filters(self, token: dict) -> bool:
-        token_address = token.get("mint")
-        return (
-            basic_filter(token) and
-            rugcheck_filter(token_address) and
-            holders_distribution_filter(token_address)
-        )
