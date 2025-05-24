@@ -17,6 +17,9 @@ from token_cache import TokenCache
 from performance_reporter import start_reporter_background_thread
 from position_tracker import PositionTracker
 
+from telegram_alert import TelegramNotifier
+
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -56,19 +59,20 @@ def main():
         logger.info("💰 Running in REAL TRADING mode")
         trader = Trader(config)
 
-    # Start position tracker (PnL + auto-sell)
+    # Start position tracker (real-time PnL + auto-sell logic)
     tracker = PositionTracker(trader=trader, notifier=telegram_notifier)
     threading.Thread(target=lambda: asyncio.run(tracker.run()), daemon=True).start()
 
-    # WebSocket callback
+    # WebSocket callback: place token into queue
     def handle_new_token(token_event: dict):
         event_queue.put(token_event)
 
-    # WebSocket listener
+    # WebSocket listener (Pump.fun)
     listener = WebSocketListener(on_token_callback=handle_new_token)
-    threading.Thread(target=listener.run, daemon=True).start()
+    listener_thread = threading.Thread(target=listener.run, daemon=True)
+    listener_thread.start()
 
-    # Token monitor
+    # Token monitor (filtering, buy logic, recheck, reporting)
     monitor = TokenMonitor(
         event_queue=event_queue,
         token_cache=token_cache,
@@ -77,34 +81,42 @@ def main():
         notifier=telegram_notifier,
         config=config
     )
-    monitor.tracker = tracker
-    threading.Thread(target=monitor.run, daemon=True).start()
+    monitor.tracker = tracker  # Inject tracker explicitly
+    monitor_thread = threading.Thread(target=monitor.run, daemon=True)
+    monitor_thread.start()
 
-    # Start automated 30-min performance reporter
+    # Auto performance reports every 30 minutes
     start_reporter_background_thread(config=config, notifier=telegram_notifier)
 
-    # ✅ Add visibility heartbeat every 5 minutes
-    def visibility_heartbeat():
+    # Visibility + Filter summary report every minute
+    def visibility_and_filter_summary():
         while True:
             try:
-                stats = token_cache.get_cache_statistics()
+                stats = token_cache.get_cache_statistics()  # This must be implemented
+                filter_stats = token_filter.get_filter_statistics()  # You must implement this method
                 message = (
                     f"📊 *Bot Visibility Report*\n"
                     f"*Total Tokens Seen:* {stats['seen']}\n"
                     f"*Tracked:* {stats['tracked']}\n"
-                    f"*Filtered:* {stats['filtered']}"
+                    f"*Filtered:* {stats['filtered']}\n\n"
+                    f"📉 *Filter Summary (Last Minute)*\n"
+                    f"- Liquidity Failures: {filter_stats.get('liquidity', 0)}\n"
+                    f"- FDV Failures: {filter_stats.get('fdv', 0)}\n"
+                    f"- Rugcheck Failures: {filter_stats.get('rugcheck', 0)}\n"
+                    f"- Holders Failures: {filter_stats.get('holders', 0)}"
                 )
                 if telegram_notifier:
                     telegram_notifier.send_message(message)
                 else:
                     logger.info(message)
+                token_filter.reset_filter_statistics()  # Reset counters
             except Exception as e:
-                logger.error(f"[Heartbeat Error] {e}")
-            time.sleep(300)
+                logger.error(f"[Visibility Summary Error] {e}")
+            time.sleep(60)  # every 1 minute
 
-    threading.Thread(target=visibility_heartbeat, daemon=True).start()
+    threading.Thread(target=visibility_and_filter_summary, daemon=True).start()
 
-    # Fallback hourly report (in case 30-min reporter fails)
+    # Health loop (optional fallback report every N hours)
     last_report_time = time.time()
     report_interval = config.get("PERFORMANCE_REPORT_INTERVAL_HOURS", 6) * 3600
     scan_interval = config.get("SCAN_INTERVAL_SECONDS", 10)
