@@ -7,12 +7,18 @@ from config import load_config
 import json
 from loguru import logger
 import traceback
+from httpx import Timeout
+import time
 
 # Load config dict
 config = load_config()
 
-# Use the configured RPC with chosen commitment level
-rpc_client = Client(config["RPC_HTTP_ENDPOINT"], commitment=config.get("COMMITMENT", "confirmed"))
+# Use the configured RPC with chosen commitment level and timeout
+rpc_client = Client(
+    config["RPC_HTTP_ENDPOINT"],
+    commitment=config.get("COMMITMENT", "confirmed"),
+    timeout=Timeout(20.0)
+)
 
 class TokenFilter:
     def __init__(self):
@@ -25,7 +31,7 @@ class TokenFilter:
 
     def apply_filters(self, token: dict) -> bool:
         token_address = (token.get("mint") or token.get("address") or "").strip()
-        
+
         if not token_address or len(token_address) < 32:
             logger.error(f"[FILTER ❌] Invalid token address (length={len(token_address)}): {token_address}")
             logger.error(json.dumps(token, indent=2))
@@ -102,53 +108,52 @@ def rugcheck_filter(token_address: str) -> bool:
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
-    import traceback
-
     try:
-        # Hardcoded USDC mint address
-        token_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        logger.info(f"[TEST] Using test token address: {token_address}")
-        
-        # Sanity check
+        if token_address.endswith("pump"):
+            token_address = token_address[:-4]
+
         if len(token_address) != 44:
-            logger.error(f"[ERROR] Invalid address length: {len(token_address)}")
+            logger.error(f"[ERROR] Invalid address length: {len(token_address)} for {token_address}")
             return False
 
         pubkey = Pubkey.from_string(token_address)
 
-        # Fetch token supply
-        supply_resp = rpc_client.get_token_supply(pubkey)
-        logger.info(f"[TEST] Supply Response: {supply_resp}")
-        if not hasattr(supply_resp, 'value'):
-            logger.error(f"[ERROR] Invalid supply response: {supply_resp}")
-            return False
-
-        total_amount = int(supply_resp.value.amount)
-        logger.info(f"[TEST] Total Supply: {total_amount:,}")
-        if total_amount == 0:
-            logger.warning(f"[WARN] Token has zero supply.")
-            return False
-
-        # Fetch token holders
-        holders_resp = rpc_client.get_token_largest_accounts(pubkey)
-        logger.info(f"[TEST] Holders Response: {holders_resp}")
-        if not hasattr(holders_resp, 'value'):
-            logger.error(f"[ERROR] Invalid holders response: {holders_resp}")
-            return False
-
-        holders = holders_resp.value[:10] if holders_resp.value else []
-        logger.info(f"[TEST] Top {len(holders)} holders fetched")
-
-        for idx, holder in enumerate(holders):
+        for attempt in range(3):
             try:
-                holder_amount = int(holder.amount.amount)
-                pct = holder_amount * 100 / total_amount
-                logger.info(f"[HOLDER {idx+1}] {holder_amount:,} tokens = {pct:.2f}%")
-            except Exception as parse_err:
-                logger.warning(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
+                supply_resp = rpc_client.get_token_supply(pubkey)
+                if not hasattr(supply_resp, 'value'):
+                    logger.error(f"[ERROR] Supply response invalid for {token_address}: {supply_resp}")
+                    return False
+
+                total_amount = int(supply_resp.value.amount)
+                if total_amount == 0:
+                    logger.warning(f"[WARN] Token {token_address} has zero supply.")
+                    return False
+
+                holders_resp = rpc_client.get_token_largest_accounts(pubkey)
+                if not hasattr(holders_resp, 'value'):
+                    logger.error(f"[ERROR] Holder response invalid for {token_address}: {holders_resp}")
+                    return False
+
+                holders = holders_resp.value[:10] if holders_resp.value else []
+
+                for idx, holder in enumerate(holders):
+                    try:
+                        holder_amount = int(holder.amount.amount)
+                        pct = holder_amount * 100 / total_amount
+                        if pct >= config["TOP_HOLDER_MAX_PERCENT"]:
+                            logger.warning(f"[FILTER ❌] {token_address}: Holder #{idx+1} holds too much ({pct:.2f}%).")
+                            return False
+                    except Exception as parse_err:
+                        logger.warning(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
+
+                return True
+
+            except Exception as e:
+                logger.warning(f"[RETRY] Attempt {attempt+1} failed for {token_address}: {e}")
+                time.sleep(1)
 
     except Exception as e:
-        logger.error(f"[ERROR] Holder check failed for {token_address}:\n{traceback.format_exc()}")
-        return False
+        logger.error(f"[ERROR] Holder check failed for {token_address}:{traceback.format_exc()}")
 
-    return True
+    return False
