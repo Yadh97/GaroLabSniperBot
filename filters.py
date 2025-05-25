@@ -23,31 +23,31 @@ class TokenFilter:
         }
 
     def apply_filters(self, token: dict) -> bool:
-        token_address = token.get("mint")
-
+        token_address = token.get("mint") or token.get("address")
+    
         if not token_address:
             logger.error("[FILTER ❌] Missing token mint. Full token object:")
             logger.error(json.dumps(token, indent=2))
             return False
-
+    
         passed = True
-
+    
         if not self.basic_filter(token):
             self.filter_stats["liquidity"] += 1
             passed = False
-
+    
         if not self.fdv_filter(token):
             self.filter_stats["fdv"] += 1
             passed = False
-
+    
         if not rugcheck_filter(token_address):
             self.filter_stats["rugcheck"] += 1
             passed = False
-
+    
         if not holders_distribution_filter(token_address):
             self.filter_stats["holders"] += 1
             passed = False
-
+    
         return passed
 
     def basic_filter(self, token) -> bool:
