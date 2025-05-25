@@ -116,7 +116,8 @@ def holders_distribution_filter(token_address: str) -> bool:
         if total_amount == 0:
             logger.warning(f"[WARN] Token {token_address} has zero supply.")
             return False
-
+        if pubkey.endswith("pump"):
+            pubkey = pubkey[:-4]
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
         if not hasattr(holders_resp, 'value'):
             logger.error(f"[ERROR] Holder response invalid for {token_address}: {holders_resp}")
