@@ -23,10 +23,12 @@ class TokenFilter:
         }
 
     def apply_filters(self, token: dict) -> bool:
-        token_address = token.get("mint") or token.get("address")
+        token_address = (token.get("mint") or token.get("address") or "").strip()
+        if token_address.endswith("pump"):
+            token_address = token_address.replace("pump", "")
 
-        if not token_address:
-            logger.error("[FILTER ❌] Missing token mint. Full token object:")
+        if not token_address or len(token_address) < 32:
+            logger.error("[FILTER ❌] Invalid token address format. Full token object:")
             logger.error(json.dumps(token, indent=2))
             return False
 
