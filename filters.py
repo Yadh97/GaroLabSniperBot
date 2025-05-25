@@ -28,7 +28,7 @@ class TokenFilter:
             token_address = token_address[:-4]
 
         if not token_address or len(token_address) < 32:
-            logger.error("[FILTER ❌] Invalid token address format. Full token object:")
+            logger.error(f"[FILTER ❌] Invalid token address (length={len(token_address)}): {token_address}")
             logger.error(json.dumps(token, indent=2))
             return False
 
