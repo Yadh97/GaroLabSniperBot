@@ -24,9 +24,7 @@ class TokenFilter:
 
     def apply_filters(self, token: dict) -> bool:
         token_address = (token.get("mint") or token.get("address") or "").strip()
-        if token_address.endswith("pump"):
-            token_address = token_address[:-4]
-
+        
         if not token_address or len(token_address) < 32:
             logger.error(f"[FILTER ❌] Invalid token address (length={len(token_address)}): {token_address}")
             logger.error(json.dumps(token, indent=2))
