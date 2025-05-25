@@ -102,36 +102,48 @@ def rugcheck_filter(token_address: str) -> bool:
     return True
 
 def holders_distribution_filter(token_address: str) -> bool:
+    import traceback
+
     try:
+        # Hardcoded USDC mint address
         token_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        if token_address.endswith("pump"):
-            token_address = token_address[:-4]
+        logger.info(f"[TEST] Using test token address: {token_address}")
         
+        # Sanity check
+        if len(token_address) != 44:
+            logger.error(f"[ERROR] Invalid address length: {len(token_address)}")
+            return False
+
         pubkey = Pubkey.from_string(token_address)
-        
+
+        # Fetch token supply
         supply_resp = rpc_client.get_token_supply(pubkey)
+        logger.info(f"[TEST] Supply Response: {supply_resp}")
         if not hasattr(supply_resp, 'value'):
-            logger.error(f"[ERROR] Supply response invalid for {token_address}: {supply_resp}")
+            logger.error(f"[ERROR] Invalid supply response: {supply_resp}")
             return False
 
         total_amount = int(supply_resp.value.amount)
+        logger.info(f"[TEST] Total Supply: {total_amount:,}")
         if total_amount == 0:
-            logger.warning(f"[WARN] Token {token_address} has zero supply.")
+            logger.warning(f"[WARN] Token has zero supply.")
             return False
 
+        # Fetch token holders
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
+        logger.info(f"[TEST] Holders Response: {holders_resp}")
         if not hasattr(holders_resp, 'value'):
-            logger.error(f"[ERROR] Holder response invalid for {token_address}: {holders_resp}")
+            logger.error(f"[ERROR] Invalid holders response: {holders_resp}")
             return False
 
         holders = holders_resp.value[:10] if holders_resp.value else []
+        logger.info(f"[TEST] Top {len(holders)} holders fetched")
 
         for idx, holder in enumerate(holders):
             try:
                 holder_amount = int(holder.amount.amount)
-                if holder_amount * 100 >= total_amount * config["TOP_HOLDER_MAX_PERCENT"]:
-                    logger.warning(f"[FILTER ❌] {token_address}: Holder #{idx+1} holds too much.")
-                    return False
+                pct = holder_amount * 100 / total_amount
+                logger.info(f"[HOLDER {idx+1}] {holder_amount:,} tokens = {pct:.2f}%")
             except Exception as parse_err:
                 logger.warning(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
 
