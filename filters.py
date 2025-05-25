@@ -102,12 +102,11 @@ def rugcheck_filter(token_address: str) -> bool:
 
 def holders_distribution_filter(token_address: str) -> bool:
     try:
+        token_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         if token_address.endswith("pump"):
             token_address = token_address[:-4]
         
         pubkey = Pubkey.from_string(token_address)
-        mint_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        pubkey = Pubkey.from_string(mint_address)
         
         supply_resp = rpc_client.get_token_supply(pubkey)
         if not hasattr(supply_resp, 'value'):
