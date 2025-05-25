@@ -106,7 +106,9 @@ def holders_distribution_filter(token_address: str) -> bool:
             token_address = token_address[:-4]
         
         pubkey = Pubkey.from_string(token_address)
-
+        mint_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        pubkey = Pubkey.from_string(mint_address)
+        
         supply_resp = rpc_client.get_token_supply(pubkey)
         if not hasattr(supply_resp, 'value'):
             logger.error(f"[ERROR] Supply response invalid for {token_address}: {supply_resp}")
