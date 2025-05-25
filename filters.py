@@ -25,7 +25,7 @@ class TokenFilter:
     def apply_filters(self, token: dict) -> bool:
         token_address = (token.get("mint") or token.get("address") or "").strip()
         if token_address.endswith("pump"):
-            token_address = token_address.replace("pump", "")
+            token_address = token_address[:-4]
 
         if not token_address or len(token_address) < 32:
             logger.error("[FILTER ❌] Invalid token address format. Full token object:")
@@ -104,6 +104,9 @@ def rugcheck_filter(token_address: str) -> bool:
 
 def holders_distribution_filter(token_address: str) -> bool:
     try:
+        if len(token_address) != 44:
+            raise ValueError("Invalid pubkey length for Solana mint")
+
         pubkey = Pubkey.from_string(token_address)
 
         supply_resp = rpc_client.get_token_supply(pubkey)
