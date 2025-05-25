@@ -72,7 +72,7 @@ class TokenFilter:
             self.filter_stats[key] = 0
 
 def rugcheck_filter(token_address: str) -> bool:
-    url = f"{config.get('RUGCHECK_BASE_URL', 'https://api.rugcheck.xyz/tokens')}/{token_address}/report"
+    url = f"{config.get('RUGCHECK_BASE_URL', 'https://api.rugcheck.xyz/v1/tokens')}/{token_address}/report"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 404:
