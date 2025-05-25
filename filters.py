@@ -24,30 +24,30 @@ class TokenFilter:
 
     def apply_filters(self, token: dict) -> bool:
         token_address = token.get("mint") or token.get("address")
-    
+
         if not token_address:
             logger.error("[FILTER ❌] Missing token mint. Full token object:")
             logger.error(json.dumps(token, indent=2))
             return False
-    
+
         passed = True
-    
+
         if not self.basic_filter(token):
             self.filter_stats["liquidity"] += 1
             passed = False
-    
+
         if not self.fdv_filter(token):
             self.filter_stats["fdv"] += 1
             passed = False
-    
+
         if not rugcheck_filter(token_address):
             self.filter_stats["rugcheck"] += 1
             passed = False
-    
+
         if not holders_distribution_filter(token_address):
             self.filter_stats["holders"] += 1
             passed = False
-    
+
         return passed
 
     def basic_filter(self, token) -> bool:
@@ -103,13 +103,22 @@ def rugcheck_filter(token_address: str) -> bool:
 def holders_distribution_filter(token_address: str) -> bool:
     try:
         pubkey = Pubkey.from_string(token_address)
+
         supply_resp = rpc_client.get_token_supply(pubkey)
+        if not hasattr(supply_resp, 'value'):
+            logger.error(f"[ERROR] Supply response invalid for {token_address}: {supply_resp}")
+            return False
+
         total_amount = int(supply_resp.value.amount)
         if total_amount == 0:
             logger.warning(f"[WARN] Token {token_address} has zero supply.")
             return False
 
         holders_resp = rpc_client.get_token_largest_accounts(pubkey)
+        if not hasattr(holders_resp, 'value'):
+            logger.error(f"[ERROR] Holder response invalid for {token_address}: {holders_resp}")
+            return False
+
         holders = holders_resp.value[:10] if holders_resp.value else []
 
         for idx, holder in enumerate(holders):
