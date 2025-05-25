@@ -6,6 +6,7 @@ from solana.rpc.api import Client
 from config import load_config
 import json
 from loguru import logger
+import traceback
 
 # Load config dict
 config = load_config()
@@ -135,7 +136,7 @@ def holders_distribution_filter(token_address: str) -> bool:
                 logger.warning(f"[WARN] Failed to parse holder #{idx+1}: {parse_err}")
 
     except Exception as e:
-        logger.error(f"[ERROR] Holder check failed for {token_address}: {e}")
+        logger.error(f"[ERROR] Holder check failed for {token_address}:\n{traceback.format_exc()}")
         return False
 
     return True
