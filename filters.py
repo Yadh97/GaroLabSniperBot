@@ -47,7 +47,9 @@ class TokenFilter:
             self.filter_stats["fdv"] += 1
             passed = False
 
-        if not rugcheck_filter(token_address):
+        rug_score = rugcheck_score(token_address)
+        if rug_score < config.get("RUGCHECK_MIN_SCORE", 60):
+            logger.warning(f"[FILTER ❌] {token_address}: RugCheck score too low ({rug_score})")
             self.filter_stats["rugcheck"] += 1
             passed = False
 
@@ -78,36 +80,40 @@ class TokenFilter:
         for key in self.filter_stats:
             self.filter_stats[key] = 0
 
-def rugcheck_filter(token_address: str) -> bool:
+def rugcheck_score(token_address: str) -> int:
     url = f"{config.get('RUGCHECK_BASE_URL', 'https://api.rugcheck.xyz/v1/tokens')}/{token_address}/report"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 404:
             logger.info(f"[INFO] RugCheck: Token not found: {token_address}")
-            return False
+            return 0
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         logger.error(f"[ERROR] RugCheck fetch failed: {e}")
-        return False
+        return 0
+
+    score = 100
 
     if data.get("rugged") is True:
-        logger.warning(f"[FILTER ❌] {token_address}: Rugged token.")
-        return False
-    if str(data.get("result", "")).lower() in ("danger", "blacklisted"):
-        logger.warning(f"[FILTER ❌] {token_address}: RugCheck marked dangerous/blacklisted.")
-        return False
-    if data.get("mintAuthority") not in (None, "", "null"):
-        logger.warning(f"[FILTER ❌] {token_address}: Mint authority detected.")
-        return False
-    if data.get("freezeAuthority") not in (None, "", "null"):
-        logger.warning(f"[FILTER ❌] {token_address}: Freeze authority detected.")
-        return False
-    if data.get("knownAccounts"):
-        logger.warning(f"[FILTER ❌] {token_address}: Involves known accounts.")
-        return False
+        return 0
 
-    return True
+    result = str(data.get("result", "")).lower()
+    if result in ("blacklisted", "danger"):
+        score -= 50
+    elif result == "warning":
+        score -= 20
+
+    if data.get("mintAuthority") not in (None, "", "null"):
+        score -= 25
+
+    if data.get("freezeAuthority") not in (None, "", "null"):
+        score -= 25
+
+    if data.get("knownAccounts"):
+        score -= 30
+
+    return max(score, 0)
 
 def holders_distribution_filter(token_address: str) -> bool:
     try:
