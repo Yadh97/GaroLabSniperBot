@@ -51,9 +51,11 @@ class TokenFilter:
             self.filter_stats["rugcheck"] += 1
             passed = False
 
-        if not holders_distribution_filter(token_address):
+        # Important: We allow tokens to pass even if holder check fails, just log the failure
+        holder_pass = holders_distribution_filter(token_address)
+        if not holder_pass:
             self.filter_stats["holders"] += 1
-            passed = False
+            logger.warning(f"[HOLDER ❌] Skipping holder filter failure for: {token_address} (not blocking)")
 
         return passed
 
@@ -109,9 +111,6 @@ def rugcheck_filter(token_address: str) -> bool:
 
 def holders_distribution_filter(token_address: str) -> bool:
     try:
-        if token_address.endswith("pump"):
-            token_address = token_address[:-4]
-
         if len(token_address) != 44:
             logger.error(f"[ERROR] Invalid address length: {len(token_address)} for {token_address}")
             return False
