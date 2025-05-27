@@ -31,35 +31,40 @@ class TokenFilter:
 
     def apply_filters(self, token: dict) -> bool:
         token_address = (token.get("mint") or token.get("address") or "").strip()
-
+    
         if not token_address or len(token_address) < 32:
             logger.error(f"[FILTER ❌] Invalid token address (length={len(token_address)}): {token_address}")
             logger.error(json.dumps(token, indent=2))
-            return False
-
+            return config.get("SIMULATION_MODE_RELAXED_FILTERS", False)
+    
         passed = True
-
+    
         if not self.basic_filter(token):
             self.filter_stats["liquidity"] += 1
             passed = False
-
+    
         if not self.fdv_filter(token):
             self.filter_stats["fdv"] += 1
             passed = False
-
+    
         rug_score = rugcheck_score(token_address)
         if rug_score < config.get("RUGCHECK_MIN_SCORE", 60):
             logger.warning(f"[FILTER ❌] {token_address}: RugCheck score too low ({rug_score})")
             self.filter_stats["rugcheck"] += 1
             passed = False
-
-        # Important: We allow tokens to pass even if holder check fails, just log the failure
+    
         holder_pass = holders_distribution_filter(token_address)
         if not holder_pass:
             self.filter_stats["holders"] += 1
             logger.warning(f"[HOLDER ❌] Skipping holder filter failure for: {token_address} (not blocking)")
-
+    
+        # If relaxed filtering in simulation mode, pass even if failed
+        if not passed and config.get("SIMULATION_MODE_RELAXED_FILTERS", False):
+            logger.info(f"[SIM MODE ✅] Token {token_address} passed despite filter failures.")
+            return True
+    
         return passed
+
 
     def basic_filter(self, token) -> bool:
         if token["liquidity_usd"] < config["MIN_LIQUIDITY_USD"]:
