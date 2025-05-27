@@ -108,8 +108,7 @@ def main():
                 if telegram_notifier:
                     telegram_notifier.send_message(message)
                 else:
-                    logger.info(message)
-                token_filter.reset_filter_statistics()  # Reset counters
+                    logger.info(message,'nik rouheeeeek')
             except Exception as e:
                 logger.error(f"[Visibility Summary Error] {e}")
             time.sleep(60)  # every 1 minute
