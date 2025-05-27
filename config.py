@@ -12,6 +12,7 @@ logger = logging.getLogger("config")
 # Configuration par défaut
 DEFAULT_CONFIG = {
     "SIMULATION_MODE": True,
+    "SIMULATION_MODE_RELAXED_FILTERS": True,
 
     # Scan & Timing
     "SCAN_INTERVAL_SECONDS": 10,
