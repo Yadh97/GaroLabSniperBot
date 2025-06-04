@@ -11,6 +11,8 @@ logger = logging.getLogger("config")
 
 # Configuration par défaut
 DEFAULT_CONFIG = {
+    "AUTO_BUY_ENABLED": True,
+
     "SIMULATION_MODE": True,
     "SIMULATION_MODE_RELAXED_FILTERS": True,
 
