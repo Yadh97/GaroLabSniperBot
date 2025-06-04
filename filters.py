@@ -56,7 +56,13 @@ class TokenFilter:
         holder_pass = holders_distribution_filter(token_address)
         if not holder_pass:
             self.filter_stats["holders"] += 1
-            logger.warning(f"[HOLDER ❌] Skipping holder filter failure for: {token_address} (not blocking)")
+            logger.warning(f"[HOLDER ❌] {token_address} failed holder check.")
+        
+            # ⚠️ Allow token to continue if it passed RugCheck
+            if rug_score >= config.get("RUGCHECK_MIN_SCORE", 60):
+                logger.info(f"[✅] Holder check failed, but RugCheck score {rug_score} is strong enough to pass.")
+            else:
+                passed = False
 
         # If relaxed filtering in simulation mode, pass even if failed
         if not passed and config.get("SIMULATION_MODE_RELAXED_FILTERS", False):
