@@ -18,7 +18,7 @@ def normalize_token_event(event: dict) -> dict:
     expected by filters, trader, and alert modules.
     """
     try:
-        sol_price = config.get("SOL_PRICE_USD", 150)  # fallback if missing
+        sol_price = config.get("SOL_PRICE_USD", 150)
 
         return {
             "address": event.get("mint"),
@@ -33,7 +33,6 @@ def normalize_token_event(event: dict) -> dict:
     except Exception as e:
         logger.error(f"[Normalize Error] Failed to normalize token event: {e}")
         return {}
-
 
 class TokenMonitor:
     def __init__(self, event_queue: Queue, token_cache: TokenCache,
@@ -67,10 +66,14 @@ class TokenMonitor:
             address = normalized.get("address")
             if not address:
                 continue
+
             self.cache.add_token_if_new(address, raw_event)
+
             if not self.cache.should_process(address):
                 continue
+
             passed = self.filter.apply_filters(normalized)
+
             if passed:
                 logger.info(f"[✅] {normalized['symbol']} passed filters.")
                 self.cache.mark_processed(address)
