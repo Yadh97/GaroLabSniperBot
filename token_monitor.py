@@ -12,7 +12,6 @@ from config import load_config
 logger = logging.getLogger("TokenMonitor")
 config = load_config()
 
-
 def normalize_token_event(event: dict) -> dict:
     """
     Converts a raw WebSocket or cached token dict into normalized structure
@@ -71,7 +70,8 @@ class TokenMonitor:
             self.cache.add_token_if_new(address, raw_event)
             if not self.cache.should_process(address):
                 continue
-            if self.filter.apply_filters(normalized):
+            passed = self.filter.apply_filters(normalized)
+            if passed:
                 logger.info(f"[✅] {normalized['symbol']} passed filters.")
                 self.cache.mark_processed(address)
                 if self.notifier:
@@ -91,7 +91,8 @@ class TokenMonitor:
             if not address or not raw_data:
                 continue
             normalized = normalize_token_event(raw_data)
-            if self.filter.apply_filters(normalized):
+            passed = self.filter.apply_filters(normalized)
+            if passed:
                 logger.info(f"[RECHECK ✅] {normalized['symbol']} passed filters.")
                 self.cache.mark_processed(address)
                 if self.notifier:
